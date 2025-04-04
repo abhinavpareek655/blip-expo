@@ -17,6 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { loginOnChain } from "../../blockchain/authContract";
+import axios from 'axios';
 
 type RootStackParamList = {
   Login: undefined;
@@ -30,58 +32,53 @@ interface LoginScreenProps {
   navigation: LoginScreenNavigationProp;
 }
 
-const API_URL = 'http://192.168.72.238:5000/login';
-
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const router = useRouter();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = useCallback(async () => {
-    if (!username.trim()) {
-      setError("no username");
-      return;
-    }
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return setError("Email is required");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) return setError("Invalid email format");
 
-    if(!password.trim()){
+
+  
+    if (!password.trim()) {
       setError("no password");
       return;
     }
-
+  
     setIsLoading(true);
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: username.trim(),
-          password: password.trim()
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+      console.log("[LOGIN] Sending login to smart contract...");
+      const isValid = await loginOnChain(normalizedEmail, password.trim());
+  
+      if (!isValid) {
+        setError("Invalid credentials");
+        return;
       }
-
+  
       setError("");
-
-      // Store user token and navigate to Home
-      await AsyncStorage.setItem('userToken', data.token);
+      await axios.post("http://192.168.112.238:5000/log-login", {
+        email: normalizedEmail,
+        timestamp: new Date().toISOString()
+      });
+      await AsyncStorage.setItem('userToken', normalizedEmail);
       router.replace('../(app)');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
-      // Alert.alert('Error', errorMessage);
       setError(errorMessage);
+      console.error("[LOGIN ERROR]", errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [username, password, navigation]);
-
+  }, [email, password]);
+  
   const togglePasswordVisibility = useCallback(() => {
     setShowPassword(prev => !prev);
   }, []);
@@ -103,16 +100,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             <Ionicons name="person-outline" size={24} color="#fff" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Username or Email"
+              placeholder="Email"
               placeholderTextColor="#888"
-              value={username}
-              onChangeText={setUsername}
+              value={email}
+              onChangeText={setEmail}
               autoCapitalize="none"
               editable={!isLoading}
-            />
+              autoCorrect={false}
+              autoComplete='email'
+            />  
           </View>
           {error==="User not found" ? <Text style={styles.errorText}>User not found</Text> : null}
-          {error==="no username" ? <Text style={styles.errorText}>Username or email is required to login</Text> : null}
+          {error==="no email" ? <Text style={styles.errorText}>email or email is required to login</Text> : null}
 
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={24} color="#fff" style={styles.inputIcon} />
@@ -124,6 +123,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
               editable={!isLoading}
+              autoCapitalize='none'
+              autoComplete="password"
+              autoCorrect={false}
             />
 
             <TouchableOpacity 

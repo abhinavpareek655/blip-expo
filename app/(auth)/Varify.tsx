@@ -12,20 +12,23 @@ import {
   Image,
   NativeSyntheticEvent,
   TextInputKeyPressEventData,
+  ActivityIndicator,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { RouteProp } from '@react-navigation/native';
 import { useRouter } from "expo-router";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute } from '@react-navigation/native';
 import axios from "axios";
+import { signupOnChain } from "../../blockchain/authContract";
 
-type VerificationScreenRouteProp = RouteProp<{ params: { email: string } }, 'params'>;
+type VerificationScreenRouteProp = RouteProp<{ params: { email: string, password: string } }, 'params'>;
 
 const VerificationScreen = () => {
   const [code, setCode] = useState(["", "", "", "", "", ""])
   const inputs = useRef<(TextInput | null)[]>([])
   const route = useRoute<VerificationScreenRouteProp>();
-  const { email } = route.params;
+  const { email, password } = route.params;
   const router = useRouter();
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -33,48 +36,70 @@ const VerificationScreen = () => {
 
   const handleCodeChange = (text: string, index: number) => {
     const newCode = [...code];
-    newCode[index] = text;
-    setCode(newCode);
   
-    // Move to next input when text is entered
-    if (text.length === 1 && index < code.length - 1) {
-      inputs.current[index + 1]?.focus();
+    // ✨ Paste full code into any box
+    if (text.length === 6 && /^\d{6}$/.test(text)) {
+      const digits = text.split('');
+      setCode(digits);
+      inputs.current[5]?.focus();
+      return;
     }
-  };
   
-  const handleKeyPress = ({ nativeEvent }: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => {
-    if (nativeEvent.key === 'Backspace') {
-      if (code[index] === '' && index > 0) {
-        // Delete previous input's content and focus it
-        const newCode = [...code];
-        newCode[index - 1] = '';
-        setCode(newCode);
-        inputs.current[index - 1]?.focus();
+    // 👆 Single digit entry
+    if (/^\d$/.test(text)) {
+      newCode[index] = text;
+      setCode(newCode);
+      if (index < 5) {
+        inputs.current[index + 1]?.focus();
       }
     }
   };
   
+  const handleKeyPress = (
+    { nativeEvent }: NativeSyntheticEvent<TextInputKeyPressEventData>,
+    index: number
+  ) => {
+    if (nativeEvent.key === "Backspace") {
+      const newCode = [...code];
+  
+      if (code[index] === '') {
+        if (index > 0) {
+          newCode[index - 1] = '';
+          setCode(newCode);
+          inputs.current[index - 1]?.focus();
+        }
+      } else {
+        newCode[index] = '';
+        setCode(newCode);
+      }
+    }
+  };
+  
+  
 
   const handleVerify = async () => {
     const verificationCode = code.join('');
-    
+  
     if (verificationCode.length !== 6) {
       setError('not enough digits');
       return;
     }
-
+  
     try {
       setLoading(true);
       setError('');
-
-      const response = await axios.post('/api/auth/verify-reset-code', {
+  
+      const response = await axios.post('http://192.168.112.238:5000/verify-otp', {
         email,
         code: verificationCode
       });
-
+  
       if (response.data.success) {
-        // Navigate to reset password screen with temp token
-        router.push({ pathname: '/Reset', params: { token: response.data.tempToken } });
+        await signupOnChain(email, password);
+        await AsyncStorage.setItem("userToken", email.trim().toLowerCase());
+        router.replace("../(app)");
+      } else {
+        setError("Verification failed");
       }
     } catch (err) {
       if (axios.isAxiosError(err)) {
@@ -87,6 +112,19 @@ const VerificationScreen = () => {
     }
   };
 
+  
+  const handleResendCode = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      await axios.post("http://192.168.112.238:5000/send-otp", { email });
+      alert("Verification code resent to your email.");
+    } catch (err) {
+      alert(err);
+    } finally {
+      setLoading(false);
+    }
+  };  
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
@@ -117,18 +155,34 @@ const VerificationScreen = () => {
       </View>
       {error === "not enough digits" ? <Text style={styles.errorText}>Please enter 6 digits varification code</Text> : null}
 
-      <TouchableOpacity style={styles.verifyButton} onPress={handleVerify}>
-        <Text style={styles.verifyButtonText}>Verify</Text>
+      <TouchableOpacity style={styles.verifyButton} onPress={handleVerify} disabled={loading}>
+        {loading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color="#ffffff" />
+            <Text style={styles.verifyButtonText}>  Verifying...</Text>
+          </View>
+        ) : (
+          <Text style={styles.verifyButtonText}>Verify</Text>
+        )}
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.resendButton}>
-        <Text style={styles.resendButtonText}>Resend Code</Text>
+
+      <TouchableOpacity style={styles.resendButton} onPress={handleResendCode} disabled={loading}>
+        {loading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color="#1DB954" />
+            <Text style={styles.resendButtonText}>  Sending...</Text>
+          </View>
+        ) : (
+          <Text style={styles.resendButtonText}>Resend Code</Text>
+        )}
       </TouchableOpacity>
+
 
       <View style={styles.changeEmailContainer}>
         <Text style={styles.changeEmailText}>Not your email address? </Text>
             <TouchableOpacity 
-                onPress={() => router.push('/Forgot')}
+                onPress={() => router.push('/Signup')}
                 disabled={loading}
             >        
         <Text style={styles.changeEmailLink}>Change email</Text>
@@ -230,6 +284,11 @@ const styles = StyleSheet.create({
     color: '#1DB954',
     fontWeight: 'bold',
   },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },  
 })
 
 export default VerificationScreen

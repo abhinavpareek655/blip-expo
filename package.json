@@ -23,6 +23,7 @@
     "axios": "^1.8.1",
     "bcryptjs": "^3.0.2",
     "blip-expo": "file:",
+    "ethers": "^6.13.5",
     "expo": "~52.0.37",
     "expo-av": "~15.0.2",
     "expo-blur": "~14.0.3",

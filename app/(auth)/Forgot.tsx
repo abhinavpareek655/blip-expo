@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState } from "react";
 import {
   View,
   Text,
@@ -9,63 +9,69 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Image,
-} from "react-native"
-import { Ionicons } from "@expo/vector-icons"
-import { useRouter } from "expo-router"
-import axios from "axios"
+  ActivityIndicator
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import axios from "axios";
 
 const ForgotPasswordScreen = () => {
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState("");
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-
   const handleSendResetLink = async () => {
-    if (!email.trim()) {
-        setError('no email');
-        return;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setError("no email");
+      return;
     }
-    if(!/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)){
-        setError("invalid email");
-        return;
+    if (!/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(normalizedEmail)) {
+      setError("invalid email");
+      return;
     }
 
     try {
-        setLoading(true);
-        setError('');
-  
-        const response = await axios.post('http://192.168.72.238:5000/send-reset-code', {
-          email: email.trim().toLowerCase(),
-        });
-  
-        if (response.data.success) {
-          router.push({ pathname: '/Varify', params: { email: encodeURIComponent(email) } });
-        } else {
-          throw new Error(response.data.message || 'Failed to send reset link');
-        }
-      } catch (err) {
-        const errorMessage = (err as any).response?.data?.message || (err as Error).message || 'Failed to send reset link. Please try again later.';
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
+      setLoading(true);
+      setError("");
+
+      const response = await axios.post("http://192.168.112.238:5000/send-otp", {
+        email: normalizedEmail,
+      });
+
+      if (response.data.success) {
+        router.push({ pathname: "/Varify", params: { email: normalizedEmail } });
+      } else {
+        throw new Error(response.data.message || "Failed to send reset link");
       }
-  }
+    } catch (err) {
+      const errorMessage =
+        (err as any).response?.data?.message ||
+        (err as Error).message ||
+        "Failed to send reset link. Please try again later.";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+    >
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
         <Ionicons name="arrow-back" size={24} color="#1DB954" />
       </TouchableOpacity>
 
       <View style={styles.logoContainer}>
-        {/* <Image source={{ uri: "https://via.placeholder.com/80" }} style={styles.logo} /> */}
         <Text style={styles.logoText}>Blip</Text>
       </View>
 
       <Text style={styles.title}>Forgot Password</Text>
-      <Text style={styles.subtitle}>Enter your email to receive a password reset link</Text>
+      <Text style={styles.subtitle}>Enter your email to receive a verification code</Text>
 
       <View style={styles.inputContainer}>
         <Ionicons name="mail-outline" size={24} color="#ffffff" style={styles.inputIcon} />
@@ -79,16 +85,26 @@ const ForgotPasswordScreen = () => {
           autoCapitalize="none"
         />
       </View>
-      {error==="no email" ? <Text style={styles.errorText}>Email is required</Text> : null}
-      {error==="invalid email" ? <Text style={styles.errorText}>Invalid email</Text> : null}
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error === "no email" && <Text style={styles.errorText}>Email is required</Text>}
+      {error === "invalid email" && <Text style={styles.errorText}>Invalid email</Text>}
+      {error && error !== "no email" && error !== "invalid email" && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
 
-      <TouchableOpacity style={styles.sendButton} onPress={handleSendResetLink}>
-        <Text style={styles.sendButtonText}>Send Reset Link</Text>
+      <TouchableOpacity
+        style={styles.sendButton}
+        onPress={handleSendResetLink}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.sendButtonText}>Send Code</Text>
+        )}
       </TouchableOpacity>
     </KeyboardAvoidingView>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -106,11 +122,6 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: "center",
     marginBottom: 30,
-  },
-  logo: {
-    width: 80,
-    height: 80,
-    marginBottom: 10,
   },
   logoText: {
     fontSize: 32,
@@ -154,19 +165,18 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginTop: 20,
     width: "100%",
+    alignItems: "center",
   },
   sendButtonText: {
     color: "#ffffff",
     fontSize: 18,
     fontWeight: "bold",
-    textAlign: "center",
   },
   errorText: {
     color: "#ff4d4d",
     fontSize: 14,
     marginBottom: 11,
   },
-})
+});
 
-export default ForgotPasswordScreen
-
+export default ForgotPasswordScreen;

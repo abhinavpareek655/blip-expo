@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,237 +7,187 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Image,
   ScrollView,
-  Alert,
   ActivityIndicator,
-} from "react-native"
-import { Ionicons } from "@expo/vector-icons"
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NavigationProp } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import Home from "../(app)";
+  TouchableWithoutFeedback,
+  Keyboard,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { initContract, signupOnChain } from "../../blockchain/authContract";
 
-const SERVER_URL = "http://10.50.8.161:5000/signup" // Added endpoint
-
-type RootParamList = {
-    SignUpScreen: undefined;
-    Login: undefined;
-    Home: undefined;
-};
-
-interface SignUpScreenProps {
-    navigation: StackNavigationProp<RootParamList, 'SignUpScreen'>;
-}
-
-const SignupScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
-  const router = useRouter()
-  const [username, setUsername] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+const SignupScreen = () => {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkAuthentication = async () => {
+    const init = async () => {
       try {
-        const userToken = await AsyncStorage.getItem('userToken')
+        console.log("[INIT] Checking Auth + Contract Init");
+        const userToken = await AsyncStorage.getItem("userToken");
         if (userToken) {
-          navigation.replace('Home')
+          router.replace("../(app)");
+          return;
         }
+        await initContract();
       } catch (error) {
-        console.error('Auth check error:', error)
+        console.error("[INIT ERROR]", error);
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
-
-    checkAuthentication()
-  }, [])
+    };
+    init();
+  }, []);
 
   const getPasswordStrength = (password: string): "Weak" | "Medium" | "Strong" => {
     if (password.length < 8) return "Weak";
-  
     const hasLower = /[a-z]/.test(password);
     const hasUpper = /[A-Z]/.test(password);
     const hasNumber = /\d/.test(password);
     const hasSpecial = /[@$!%*?&]/.test(password);
-  
-    if (hasLower && hasUpper && hasNumber && hasSpecial) {
-      return "Strong";
-    } else if ((hasLower || hasUpper) && hasNumber) {
-      return "Medium";
-    }
-  
+    if (hasLower && hasUpper && hasNumber && hasSpecial) return "Strong";
+    if ((hasLower || hasUpper) && hasNumber) return "Medium";
     return "Weak";
   };
 
+  const togglePasswordVisibility = useCallback(() => {
+    setShowPassword(prev => !prev);
+  }, []);
+
   const handleSignUp = async () => {
-      if (!username) {
-        setError("no username");
-        return;
-      }
-      if(!email){
-        setError("no email");
-        return;
-      }
-      if(!/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)){
-        setError("invalid email");
-        return;
-      }
-      if(!password){
-        setError("no password");
-        return;
-      }
-      if(password.length < 8){
-        setError("password must be at least 8 characters");
-        return;
-      }
-      if(getPasswordStrength(password) === "Weak"){
-        setError("weak password");
-      }
-      if(getPasswordStrength(password) === "Medium"){
-        setError("medium password");
-      }
-      if(getPasswordStrength(password) === "Strong"){
-        setError("strong password");
-      }
-      if(!confirmPassword){
-        setError("no confirm password");
-        return;
-      }
-      if (password !== confirmPassword) {
-        setError("passwords do not match");
-        return;
-      }
-    
-      try {
-        const response = await fetch(SERVER_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ username, email, password }),
-        });
-    
-        const data = await response.json();
-    
-        if (!response.ok) {
-          setError(data.message || "Could not create account.");
-          return;
-        }
-    
-        await AsyncStorage.setItem("userToken", data.token);
-        router.replace("../(app)");
-      } catch (error) {
-        setError("server connection error.");
-        console.error("Signup error:", error);
-      }
-  }
+    const normalizedEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!email) return setError("no email");
+    if (!emailRegex.test(normalizedEmail)) return setError("invalid email");
+    if (!password) return setError("no password");
+    if (password.length < 8) return setError("password must be at least 8 characters");
+    const strength = getPasswordStrength(password);
+    if (strength === "Weak") return setError("weak password");
+    if (!confirmPassword) return setError("no confirm password");
+    if (password !== confirmPassword) return setError("passwords do not match");
+
+    try {
+      setIsLoading(true);
+
+      await fetch("http://192.168.112.238:5000/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail }),
+      });
+
+      router.replace({ pathname: "/Varify", params: { email: normalizedEmail, password } });
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      setError("Signup failed. Maybe already registered or invalid.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1DB954" />
       </View>
-    )
+    );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardAvoidingView}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1DB954" />
-        </TouchableOpacity> 
-
-        <View style={styles.logoContainer}>
-          {/* <Image source={{ uri: "https://via.placeholder.com/80" }} style={styles.logo} /> */}
-          <Text style={styles.logoText}>Blip</Text>
-        </View>
-
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join the decentralized social revolution</Text>
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="person-outline" size={24} color="#ffffff" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Username"
-            placeholderTextColor="#666"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            maxLength={40}
-          />
-        </View>
-        {error === "no username" ? <Text style={styles.errorText}>Please enter a username</Text> : null}
-        {error === "username already in use" ? <Text style={styles.errorText}>This username is already in use</Text> : null}
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="mail-outline" size={24} color="#ffffff" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#666"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
-        {error === "no email" ? <Text style={styles.errorText}>Please enter an email</Text> : null}
-        {error === "invalid email" ? <Text style={styles.errorText}>Please enter a valid email</Text> : null}
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="lock-closed-outline" size={24} color="#ffffff" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#666"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-        </View>
-        {error === "no password" ? <Text style={styles.errorText}>Please enter a password</Text> : null}
-        {error === "password must be at least 8 characters" ? <Text style={styles.errorText}>Password must be at least 8 characters</Text> : null}
-        {error === "weak password" ? <Text style={styles.errorText}>Password is weak</Text> : null}
-        {error === "medium password" ? <Text style={styles.mediumPassword}>Password is medium</Text> : null}
-        {error === "strong password" ? <Text style={styles.strongPassword}>Password is strong</Text> : null}
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="lock-closed-outline" size={24} color="#ffffff" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm Password"
-            placeholderTextColor="#666"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-          />
-        </View>
-        {error === "no confirm password" ? <Text style={styles.errorText}>Please confirm your password</Text> : null}
-        {error === "passwords do not match" ? <Text style={styles.errorText}>Passwords do not match</Text> : null}
-
-        <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>
-          <Text style={styles.signUpButtonText}>Sign Up</Text>
-        </TouchableOpacity>
-
-        <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => router.replace("/Login")}>
-            <Text style={styles.loginLink}>Log In</Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardAvoidingView}>
+        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#1DB954" />
           </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>Blip</Text>
+          </View>
+
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Join the decentralized social revolution</Text>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={24} color="#ffffff" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#666"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+          {error === "no email" && <Text style={styles.errorText}>Please enter an email</Text>}
+          {error === "invalid email" && <Text style={styles.errorText}>Please enter a valid email</Text>}
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={24} color="#ffffff" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#666"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoComplete="password"
+            />
+            <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
+              <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={24} color="#888" />
+            </TouchableOpacity>
+          </View>
+          {error === "no password" && <Text style={styles.errorText}>Please enter a password</Text>}
+          {error === "password must be at least 8 characters" && <Text style={styles.errorText}>Password must be at least 8 characters</Text>}
+          {error === "weak password" && <Text style={styles.errorText}>Password is weak</Text>}
+          {getPasswordStrength(password) === "Medium" && <Text style={styles.mediumPassword}>Password is medium</Text>}
+          {getPasswordStrength(password) === "Strong" && <Text style={styles.strongPassword}>Password is strong</Text>}
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={24} color="#ffffff" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              placeholderTextColor="#666"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoComplete="password"
+            />
+            <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
+              <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={24} color="#888" />
+            </TouchableOpacity>
+          </View>
+          {error === "no confirm password" && <Text style={styles.errorText}>Please confirm your password</Text>}
+          {error === "passwords do not match" && <Text style={styles.errorText}>Passwords do not match</Text>}
+
+          <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>
+            <Text style={styles.signUpButtonText}>Sign Up</Text>
+          </TouchableOpacity>
+
+          <View style={styles.loginContainer}>
+            <Text style={styles.loginText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.replace("/Login")}>
+              <Text style={styles.loginLink}>Log In</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
-  )
-}
+    </TouchableWithoutFeedback>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -246,7 +196,7 @@ const styles = StyleSheet.create({
   },
   keyboardAvoidingView: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
     padding: 20,
   },
   scrollContainer: {
@@ -263,11 +213,6 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: "center",
     marginBottom: 30,
-  },
-  logo: {
-    width: 80,
-    height: 80,
-    marginBottom: 10,
   },
   logoText: {
     fontSize: 32,
@@ -304,6 +249,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingVertical: 15,
   },
+  eyeIcon: {
+    padding: 10,
+  },
   signUpButton: {
     backgroundColor: "#1DB954",
     paddingVertical: 15,
@@ -331,9 +279,9 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#121212',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#121212",
   },
   errorText: {
     color: "#ff4d4d",
@@ -351,8 +299,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 14,
     marginBottom: 11,
-  }
-})
+  },
+});
 
-export default SignupScreen
-
+export default SignupScreen;
