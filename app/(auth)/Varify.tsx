@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute } from '@react-navigation/native';
 import axios from "axios";
 import { signupOnChain } from "../../blockchain/authContract";
+import { initProfileContract, createProfile } from "../../blockchain/profileContract";
 
 type VerificationScreenRouteProp = RouteProp<{ params: { email: string, password: string } }, 'params'>;
 
@@ -95,12 +96,25 @@ const VerificationScreen = () => {
       });
   
       if (response.data.success) {
-        await signupOnChain(email, password);
-        await AsyncStorage.setItem("userToken", email.trim().toLowerCase());
-        router.replace("../(app)");
-      } else {
-        setError("Verification failed");
-      }
+        try {
+          console.log("[VERIFY] Signing up on chain...");
+          await signupOnChain(email, password);
+      
+          console.log("[VERIFY] Initializing profile contract...");
+          await initProfileContract();
+      
+          console.log("[VERIFY] Creating on-chain profile...");
+          await createProfile("User", email, "https://ipfs.io/ipfs/QmcZRa4uNoDjzQryG2MJQ8C4P3KEP1sBbdNH39HTGpojzG", "Bio");
+      
+          await AsyncStorage.setItem("userToken", email.trim().toLowerCase());
+      
+          console.log("[VERIFY] Profile created. Redirecting...");
+          router.replace("../(app)");
+        } catch (profileError) {
+          console.error("[VERIFY ERROR] Profile creation failed:", profileError);
+          setError("Profile creation failed. Please try again.");
+        }
+      }      
     } catch (err) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || 'Verification failed');
