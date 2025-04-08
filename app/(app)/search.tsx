@@ -1,180 +1,158 @@
-"use client"
-
-import { useState } from "react"
-import { View, Text, TextInput, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Image } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
-
-// Dummy data for search results
-const DUMMY_SEARCH_RESULTS: SearchResultItemProps['item'][] = [
-  { id: "1", type: "user", name: "alice_blockchain", avatar: "https://media.istockphoto.com/id/1437816897/photo/business-woman-manager-or-human-resources-portrait-for-career-success-company-we-are-hiring.jpg?s=2048x2048&w=is&k=20&c=8QovDK9XochFpaIC-N3pn5EEaRSVuE1SKpQDVUxLSUk=" },
-  { id: "2", type: "hashtag", name: "blockchain" },
-  { id: "3", type: "post", content: "Just launched my new DApp!", username: "bob_crypto" },
-  { id: "4", type: "user", name: "charlie_web3", avatar: "https://media.istockphoto.com/id/1285124274/photo/middle-age-man-portrait.jpg?s=2048x2048&w=is&k=20&c=bTE9WTRrEu0QmBJhr-3bqc4xO5jLpkuXFScIpSJWXRQ=" },
-  { id: "5", type: "hashtag", name: "cryptocurrency" },
-  { id: "6", type: "post", content: "What are your thoughts on the latest NFT trends?", username: "dave_nft" },
-]
-
-interface SearchResultItemProps {
-  item: {
-    id: string;
-    type: "user" | "hashtag" | "post";
-    name?: string;
-    avatar?: string;
-    content?: string;
-    username?: string;
-  };
-  onPress: () => void;
-}
-
-const SearchResultItem = ({ item, onPress }: SearchResultItemProps) => {
-  const getIcon = () => {
-    switch (item.type) {
-      case "user":
-        return "person"
-      case "hashtag":
-        return "pricetag"
-      case "post":
-        return "document-text"
-      default:
-        return "help-circle"
-    }
-  }
-
-  return (
-    <TouchableOpacity style={styles.resultItem} onPress={onPress}>
-      <View style={styles.resultIconContainer}>
-        {item.type === "user" && item.avatar ? (
-          <Image source={{ uri: item.avatar }} style={styles.avatar} />
-        ) : (
-          <Ionicons name={getIcon()} size={24} color="#1DB954" />
-        )}
-      </View>
-      <View style={styles.resultContent}>
-        <Text style={styles.resultName}>
-          {item.type === "hashtag" ? "#" : ""}
-          {item.name || item.username}
-        </Text>
-        {item.type === "post" && (
-          <Text style={styles.resultSubtext} numberOfLines={1}>
-            {item.content}
-          </Text>
-        )}
-      </View>
-    </TouchableOpacity>
-  )
-}
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import { getProfileByEmail, initProfileContract } from "../../blockchain/profileContract";
 
 const SearchScreen = () => {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState(DUMMY_SEARCH_RESULTS)
+  const [email, setEmail] = useState("");
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSearch = (text: string) => {
-    setSearchQuery(text)
-    // In a real app, you would make an API call here to fetch search results
-    // For now, we'll just filter the dummy data
-    const filteredResults = DUMMY_SEARCH_RESULTS.filter(
-      (item) =>
-        item.name?.toLowerCase().includes(text.toLowerCase()) ||
-        item.content?.toLowerCase().includes(text.toLowerCase()) ||
-        item.username?.toLowerCase().includes(text.toLowerCase()),
-    )
-    setSearchResults(filteredResults)
-  }
-
-  const handleResultPress = (item: SearchResultItemProps['item']) => {
-    // Handle navigation to the appropriate screen based on the item type
-    console.log("Pressed:", item)
-  }
-
+  const searchUser = async () => {
+    if (!email.includes("@")) {
+      return;
+    }
+  
+    setLoading(true);
+    try {
+      await initProfileContract();
+      const profile = await getProfileByEmail(email.trim().toLowerCase());
+      setUser(profile);
+    } catch (err: any) {
+      if (err?.reason === "Email not registered") {
+        console.log("[SEARCH] No user found for:", email);
+        setUser(null);
+      } else {
+        console.error("[SEARCH ERROR]", err);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search users, posts, or hashtags"
-          placeholderTextColor="#666"
-          value={searchQuery}
-          onChangeText={handleSearch}
-        />
-      </View>
-      <FlatList
-        data={searchResults}
-        renderItem={({ item }) => <SearchResultItem item={item} onPress={() => handleResultPress(item)} />}
-        keyExtractor={(item) => item.id}
-        style={styles.resultsList}
-        ListEmptyComponent={<Text style={styles.emptyResultText}>No results found</Text>}
-      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Search Users</Text>
+        </View>
+
+        <View style={styles.searchBox}>
+          <TextInput
+            placeholder="Enter email"
+            placeholderTextColor="#888"
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <TouchableOpacity style={styles.searchButton} onPress={searchUser}>
+            <Text style={styles.searchButtonText}>Search</Text>
+          </TouchableOpacity>
+        </View>
+
+        {loading && <ActivityIndicator color="#1DB954" style={{ marginTop: 20 }} />}
+        {!loading && user === null && (
+          <Text style={styles.noResult}>No user found with that email</Text>
+        )}
+        {user && (
+          <View style={styles.resultCard}>
+            <Text style={styles.resultName}>{user.name}</Text>
+            <Text style={styles.resultBio}>Bio: {user.bio}</Text>
+            <Text style={styles.resultDetail}>Email: {user.email}</Text>
+            <Text style={styles.resultDetail}>
+              Wallet: {user.wallet.slice(0, 6)}...{user.wallet.slice(-4)}
+            </Text>
+            <Text style={styles.resultDetail}>
+              Joined: {new Date(user.createdAt * 1000).toLocaleDateString()}
+            </Text>
+            <Text style={styles.resultDetail}>
+              Posts: {user.posts.length}
+            </Text>
+          </View>
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#121212",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1E1E1E",
-    borderRadius: 20,
-    margin: 10,
-    paddingHorizontal: 15,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    color: "#ffffff",
-    fontSize: 16,
-    paddingVertical: 10,
-    borderColor: "#1E1E1E",
-  },
-  resultsList: {
-    flex: 1,
-  },
-  resultItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderBottomWidth: 1,
+  container: { flex: 1, backgroundColor: "#121212" },
+  header: {
+    padding: 20,
     borderBottomColor: "#2C2C2C",
+    borderBottomWidth: 1,
   },
-  resultIconContainer: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  searchBox: {
+    flexDirection: "row",
+    padding: 20,
+    gap: 10,
   },
-  resultContent: {
+  input: {
     flex: 1,
+    backgroundColor: "#1E1E1E",
+    color: "#fff",
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
   },
-  resultName: {
-    color: "#ffffff",
-    fontSize: 16,
+  searchButton: {
+    backgroundColor: "#1DB954",
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    justifyContent: "center",
+  },
+  searchButtonText: {
+    color: "#fff",
     fontWeight: "bold",
   },
-  resultSubtext: {
+  resultCard: {
+    backgroundColor: "#1E1E1E",
+    margin: 20,
+    padding: 16,
+    borderRadius: 10,
+  },
+  resultName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 4,
+  },
+  resultBio: {
+    color: "#ccc",
+    marginBottom: 6,
+  },
+  resultDetail: {
     color: "#888",
-    fontSize: 14,
+    fontSize: 13,
     marginTop: 2,
   },
-  emptyResultText: {
+  noResult: {
     color: "#888",
     fontSize: 16,
+    marginTop: 30,
     textAlign: "center",
-    marginTop: 20,
-  },
-})
+  }
+  
+});
 
-export default SearchScreen
-
+export default SearchScreen;
