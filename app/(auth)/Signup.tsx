@@ -77,7 +77,7 @@ const SignupScreen = () => {
     try {
       setIsLoading(true);
 
-      await fetch("http://10.50.15.98:5000/send-otp", {
+      await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: normalizedEmail }),

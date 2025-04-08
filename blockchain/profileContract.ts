@@ -1,12 +1,13 @@
 import { JsonRpcProvider, Contract } from "ethers";
 import BlipProfileABI from "./BlipProfile.json";
 
-const CONTRACT_ADDRESS = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"; 
+const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_PROFILE_CONTRACT!;
+const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
 
 let profileContract: Contract;
 
 export const initProfileContract = async () => {
-  const provider = new JsonRpcProvider("http://192.168.112.238:8545"); // adjust IP as needed
+  const provider = new JsonRpcProvider(PROVIDER_URL);
   const signer = await provider.getSigner();
   profileContract = new Contract(CONTRACT_ADDRESS, BlipProfileABI.abi, signer);
 };
@@ -14,83 +15,99 @@ export const initProfileContract = async () => {
 export const createProfile = async (
   name: string,
   email: string,
-  avatar: string,
   bio: string
 ) => {
   if (!profileContract) throw new Error("Profile contract not initialized");
-  const tx = await profileContract.createProfile(name, email, avatar, bio);
+  const tx = await profileContract.createProfile(name, email, bio);
   console.log(`[CREATE PROFILE] Tx sent: ${tx.hash}`);
   await tx.wait();
-  console.log(`[CREATE PROFILE] Profile created`);
-};
-
-export const updateAvatar = async (newAvatar: string) => {
-  if (!profileContract) throw new Error("Profile contract not initialized");
-  const tx = await profileContract.updateAvatar(newAvatar);
-  await tx.wait();
-  console.log(`[AVATAR UPDATED]`);
 };
 
 export const updateBio = async (newBio: string) => {
   if (!profileContract) throw new Error("Profile contract not initialized");
   const tx = await profileContract.updateBio(newBio);
   await tx.wait();
-  console.log(`[BIO UPDATED]`);
 };
 
-export const blipUser = async (targetAddress: string) => {
+export const updateName = async (newName: string) => {
   if (!profileContract) throw new Error("Profile contract not initialized");
-  const tx = await profileContract.blip(targetAddress);
+  const tx = await profileContract.updateName(newName);
   await tx.wait();
-  console.log(`[BLIPPED] You blipped ${targetAddress}`);
 };
 
-export const unblipUser = async (targetAddress: string) => {
+export const updateProfileOnChain = async (name: string, bio: string) => {
   if (!profileContract) throw new Error("Profile contract not initialized");
-  const tx = await profileContract.unblip(targetAddress);
+  const tx1 = await profileContract.updateBio(bio);
+  await tx1.wait();
+  const tx2 = await profileContract.updateName(name);
+  await tx2.wait();
+};
+
+export const addFriend = async (friendAddress: string) => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  const tx = await profileContract.addFriend(friendAddress);
   await tx.wait();
-  console.log(`[UNBLIPPED] You unblipped ${targetAddress}`);
 };
 
-export const addPostToProfile = async (postContractAddress: string) => {
+export const removeFriend = async (friendAddress: string) => {
   if (!profileContract) throw new Error("Profile contract not initialized");
-  const tx = await profileContract.addPost(postContractAddress);
+  const tx = await profileContract.removeFriend(friendAddress);
   await tx.wait();
-  console.log(`[POST ADDED] to profile`);
 };
 
-export const getProfile = async (user: string) => {
+export const isFriend = async (user1: string, user2: string): Promise<boolean> => {
   if (!profileContract) throw new Error("Profile contract not initialized");
-  const result = await profileContract.getProfile(user);
+  return await profileContract.isFriend(user1, user2);
+};
+
+export const addTextPost = async (text: string, isPublic: boolean) => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  const tx = await profileContract.addPost(text, isPublic);
+  console.log(`[ADD POST] Tx sent: ${tx.hash}`);
+  await tx.wait();
+};
+
+export const getProfile = async (wallet: string) => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  const result = await profileContract.getProfile(wallet);
   return {
     name: result[0],
     email: result[1],
-    avatar: result[2],
-    bio: result[3],
+    bio: result[2],
+    wallet: result[3],
     createdAt: Number(result[4]),
-    posts: result[5],
-    blippers: result[6],
-    bliping: result[7],
+    posts: result[5].map((p: any) => ({
+      text: p.text,
+      timestamp: Number(p.timestamp),
+      isPublic: p.isPublic,
+    })),
   };
 };
 
-export const isUserBlipping = async (from: string, to: string): Promise<boolean> => {
+export const getProfileByEmail = async (email: string) => {
   if (!profileContract) throw new Error("Profile contract not initialized");
-  return await profileContract.isUserBlipping(from, to);
+  const result = await profileContract.getProfileByEmail(email);
+  return {
+    name: result[0],
+    email: result[1],
+    bio: result[2],
+    wallet: result[3],
+    createdAt: Number(result[4]),
+    posts: result[5].map((p: any) => ({
+      text: p.text,
+      timestamp: Number(p.timestamp),
+      isPublic: p.isPublic,
+    })),
+  };
 };
 
-export const doesProfileExist = async (user: string): Promise<boolean> => {
+export const getFriends = async (wallet: string) => {
   if (!profileContract) throw new Error("Profile contract not initialized");
-  return await profileContract.profileExistsFor(user);
+  return await profileContract.getFriends(wallet);
 };
 
-export const updateProfileOnChain = async (name: string, avatar: string, bio: string) => {
-    if (!profileContract) throw new Error("Profile contract not initialized");
-    const tx1 = await profileContract.updateAvatar(avatar);
-    await tx1.wait();
-    const tx2 = await profileContract.updateBio(bio);
-    await tx2.wait();
-    const tx3 = await profileContract.updateName(name);
-    await tx3.wait();
+export const getFriendsWithProfiles = async (wallet: string) => {
+  const friends = await getFriends(wallet);
+  const profiles = await Promise.all(friends.map(getProfile));
+  return profiles;
 };
-  

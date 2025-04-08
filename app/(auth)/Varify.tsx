@@ -90,31 +90,34 @@ const VerificationScreen = () => {
       setLoading(true);
       setError('');
   
-      const response = await axios.post('http://10.50.15.98:5000/verify-otp', {
-        email,
-        code: verificationCode
-      });
+      const response = await axios.post(
+        `${process.env.EXPO_PUBLIC_BACKEND_URL}/verify-otp`,
+        {
+          email: email.trim().toLowerCase(),
+          code: verificationCode,
+        }
+      );
   
       if (response.data.success) {
         try {
           console.log("[VERIFY] Signing up on chain...");
           await signupOnChain(email, password);
-      
+  
           console.log("[VERIFY] Initializing profile contract...");
           await initProfileContract();
-      
+  
           console.log("[VERIFY] Creating on-chain profile...");
-          await createProfile("User", email, "https://ipfs.io/ipfs/QmcZRa4uNoDjzQryG2MJQ8C4P3KEP1sBbdNH39HTGpojzG", "Bio");
-      
+          await createProfile("User", email, "I am a Blip User"); 
+  
           await AsyncStorage.setItem("userToken", email.trim().toLowerCase());
-      
+  
           console.log("[VERIFY] Profile created. Redirecting...");
           router.replace("../(app)");
         } catch (profileError) {
           console.error("[VERIFY ERROR] Profile creation failed:", profileError);
           setError("Profile creation failed. Please try again.");
         }
-      }      
+      }
     } catch (err) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || 'Verification failed');
@@ -125,13 +128,14 @@ const VerificationScreen = () => {
       setLoading(false);
     }
   };
+  
 
   
   const handleResendCode = async () => {
     try {
       setLoading(true);
       setError("");
-      await axios.post("http://10.50.15.98:5000/send-otp", { email });
+      await axios.post(`${process.env.EXPO_PUBLIC_BACKEND_URL}/send-otp`, { email });
       alert("Verification code resent to your email.");
     } catch (err) {
       alert(err);

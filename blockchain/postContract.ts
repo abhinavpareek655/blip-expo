@@ -1,19 +1,20 @@
 import { JsonRpcProvider, Contract } from "ethers";
 import BlipPostsABI from "./BlipPosts.json";
 
-const CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_POST_CONTRACT!;
+const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
 
 let postContract: Contract;
 
 export const initPostContract = async () => {
-  const provider = new JsonRpcProvider("http://192.168.112.238:8545");
+  const provider = new JsonRpcProvider(PROVIDER_URL);
   const signer = await provider.getSigner();
   postContract = new Contract(CONTRACT_ADDRESS, BlipPostsABI.abi, signer);
 };
 
-export const createPost = async (text: string, imageHash: string, isPublic: boolean) => {
+export const createPost = async (text: string, isPublic: boolean) => {
   if (!postContract) throw new Error("Post contract not initialized");
-  const tx = await postContract.createPost(text, imageHash, isPublic);
+  const tx = await postContract.createPost(text, isPublic);
   console.log("[CREATE POST] Tx sent:", tx.hash);
   await tx.wait();
   console.log("[CREATE POST] Post created");
@@ -55,23 +56,7 @@ export const getLikes = async (postId: number) => {
   return await postContract.getLikes(postId);
 };
 
-export const addFriend = async (friendAddress: string) => {
-  if (!postContract) throw new Error("Post contract not initialized");
-  const tx = await postContract.addFriend(friendAddress);
-  await tx.wait();
-  console.log(`[ADD FRIEND] Added friend ${friendAddress}`);
-};
-
-export const getPrivatePostsOfFriends = async () => {
-  if (!postContract) throw new Error("Post contract not initialized");
-  return await postContract.getPrivatePostsFromFriends(); 
-};
-
 export const getPostById = async (postId: number) => {
-    if (!postContract) throw new Error("Post contract not initialized");
-    return await postContract.posts(postId);
-  };
-  
-export const getUserAvatar = (user: string) => {
-    
-}
+  if (!postContract) throw new Error("Post contract not initialized");
+  return await postContract.posts(postId);
+};

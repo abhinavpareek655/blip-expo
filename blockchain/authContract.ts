@@ -1,9 +1,8 @@
-import { JsonRpcProvider, Contract } from "ethers";
-import AuthABI from "./BlipAuth.json"; // ABI only!
-import { keccak256, toUtf8Bytes } from "ethers";
+import { JsonRpcProvider, Contract, keccak256, toUtf8Bytes } from "ethers";
+import AuthABI from "./BlipAuth.json";
 
-const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-const RPC_URL = "http://192.168.112.238:8545"; // Replace with your local network IP
+const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_AUTH_CONTRACT!;
+const RPC_URL = process.env.EXPO_PUBLIC_RPC_URL!;
 
 let provider: JsonRpcProvider;
 let signerContract: Contract;
@@ -56,7 +55,9 @@ export const loginOnChain = async (email: string, password: string): Promise<boo
   }
 };
 
-
+/**
+ * Get wallet address associated with hashed email
+ */
 export const getWalletFromEmail = async (email: string): Promise<string> => {
   if (!readOnlyContract) throw new Error("Contract not initialized");
 

@@ -9,9 +9,8 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import Post from '../(post)/Post';
-import { initPostContract, getUserPosts, getPostById, getComments, getUserAvatar } from '../../blockchain/postContract';
-import { useWalletAddress } from '../../hooks/useWalletAddress'; 
+import { getProfile, initProfileContract } from '../../blockchain/profileContract';
+import { useWalletAddress } from '../../hooks/useWalletAddress';
 
 export default function HomeScreen() {
   const [posts, setPosts] = useState<any[]>([]);
@@ -21,29 +20,29 @@ export default function HomeScreen() {
 
   const fetchPosts = async () => {
     try {
+      console.log("[HOME] Fetching profile for posts...");
       setRefreshing(true);
-      await initPostContract();
-      if (!wallet) return;
+      await initProfileContract();
 
-      const postIds = await getUserPosts(wallet);
-      const fetchedPosts = [];
-
-      for (let id of postIds) {
-        const post = await getPostById(id);
-        fetchedPosts.push({
-          id: post.id.toString(),
-          username: post.owner.slice(0, 8), // just a partial address
-          avatar: getUserAvatar(post.owner),
-          content: post.text,
-          likes: post.likeCount.toNumber?.() ?? 0,
-          comments: getComments(id),
-          timestamp: new Date(post.timestamp * 1000).toLocaleTimeString(),
-        });
+      if (!wallet) {
+        console.warn("[HOME] No wallet found.");
+        return;
       }
 
-      setPosts(fetchedPosts.reverse());
+      const profile = await getProfile(wallet);
+      console.log("[HOME] User profile fetched:", profile);
+
+      const formattedPosts = profile.posts.map((post: any, index: number) => ({
+        id: index.toString(),
+        content: post.text,
+        timestamp: Number(post.timestamp),
+        isPublic: post.isPublic,
+        username: wallet.slice(0, 8),
+      }));
+
+      setPosts(formattedPosts.reverse());
     } catch (error) {
-      console.error("Error loading posts:", error);
+      console.error("❌ [HOME] Error loading posts:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -70,8 +69,13 @@ export default function HomeScreen() {
           data={posts}
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchPosts} />}
-          renderItem={({ item }) => <Post post={item} />}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          renderItem={({ item }) => (
+            <View style={styles.postCard}>
+              <Text style={styles.username}>{item.username}</Text>
+              <Text style={styles.postText}>{item.content}</Text>
+            </View>
+          )}
+          contentContainerStyle={{ padding: 16 }}
         />
       )}
     </SafeAreaView>
@@ -97,5 +101,21 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  postCard: {
+    backgroundColor: "#1E1E1E",
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+  },
+  username: {
+    color: "#1DB954",
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  postText: {
+    color: "#fff",
+    fontSize: 15,
+    lineHeight: 20,
   },
 });
