@@ -9,40 +9,46 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import { getProfile, initProfileContract } from '../../blockchain/profileContract';
-import { useWalletAddress } from '../../hooks/useWalletAddress';
+import { Contract, JsonRpcProvider } from 'ethers';
+import BlipProfileABI from '../../blockchain/BlipProfile.json';
+
+const PROFILE_CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_PROFILE_CONTRACT!;
+const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
+
+let profileContract: Contract;
+
+export const initContract = async () => {
+  const provider = new JsonRpcProvider(PROVIDER_URL);
+  profileContract = new Contract(PROFILE_CONTRACT_ADDRESS, BlipProfileABI.abi, provider);
+};
+
+export const getAdminPosts = async () => {
+  if (!profileContract) await initContract();
+  const result = await profileContract.getAdminPosts();
+
+  return result
+    .map((p: any, idx: number) => ({
+      id: idx.toString(),
+      text: p.text,
+      timestamp: Number(p.timestamp),
+      isPublic: p.isPublic,
+    }))
+    .sort((a: { timestamp: number }, b: { timestamp: number }) => b.timestamp - a.timestamp);
+};
 
 export default function HomeScreen() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const wallet = useWalletAddress();
 
   const fetchPosts = async () => {
     try {
-      console.log("[HOME] Fetching profile for posts...");
+      console.log("[HOME] Fetching admin public posts...");
       setRefreshing(true);
-      await initProfileContract();
-
-      if (!wallet) {
-        console.warn("[HOME] No wallet found.");
-        return;
-      }
-
-      const profile = await getProfile(wallet);
-      console.log("[HOME] User profile fetched:", profile);
-
-      const formattedPosts = profile.posts.map((post: any, index: number) => ({
-        id: index.toString(),
-        content: post.text,
-        timestamp: Number(post.timestamp),
-        isPublic: post.isPublic,
-        username: wallet.slice(0, 8),
-      }));
-
-      setPosts(formattedPosts.reverse());
+      const publicPosts = await getAdminPosts();
+      setPosts(publicPosts);
     } catch (error) {
-      console.error("❌ [HOME] Error loading posts:", error);
+      console.error("❌ [HOME] Error loading public posts:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -51,13 +57,13 @@ export default function HomeScreen() {
 
   useEffect(() => {
     fetchPosts();
-  }, [wallet]);
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Blip</Text>
+        <Text style={styles.headerTitle}>Public Feed</Text>
       </View>
 
       {loading ? (
@@ -71,8 +77,10 @@ export default function HomeScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchPosts} />}
           renderItem={({ item }) => (
             <View style={styles.postCard}>
-              <Text style={styles.username}>{item.username}</Text>
-              <Text style={styles.postText}>{item.content}</Text>
+              <Text style={styles.postText}>{item.text}</Text>
+              <Text style={styles.meta}>
+                {new Date(item.timestamp * 1000).toLocaleString()} — {item.isPublic ? '🌍 Public' : '🔒 Private'}
+              </Text>
             </View>
           )}
           contentContainerStyle={{ padding: 16 }}
@@ -83,10 +91,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#121212",
-  },
+  container: { flex: 1, backgroundColor: "#121212" },
   header: {
     padding: 15,
     borderBottomWidth: 1,
@@ -108,14 +113,14 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
-  username: {
-    color: "#1DB954",
-    fontSize: 12,
-    marginBottom: 6,
-  },
   postText: {
     color: "#fff",
     fontSize: 15,
     lineHeight: 20,
+  },
+  meta: {
+    color: "#888",
+    fontSize: 12,
+    marginTop: 6,
   },
 });
