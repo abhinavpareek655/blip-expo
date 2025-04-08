@@ -64,7 +64,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       }
   
       setError("");
-      await axios.post("http://192.168.112.238:5000/log-login", {
+      await axios.post("http://10.50.15.98:5000/log-login", {
         email: normalizedEmail,
         timestamp: new Date().toISOString()
       });

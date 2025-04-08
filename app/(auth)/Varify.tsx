@@ -90,7 +90,7 @@ const VerificationScreen = () => {
       setLoading(true);
       setError('');
   
-      const response = await axios.post('http://192.168.112.238:5000/verify-otp', {
+      const response = await axios.post('http://10.50.15.98:5000/verify-otp', {
         email,
         code: verificationCode
       });
@@ -131,7 +131,7 @@ const VerificationScreen = () => {
     try {
       setLoading(true);
       setError("");
-      await axios.post("http://192.168.112.238:5000/send-otp", { email });
+      await axios.post("http://10.50.15.98:5000/send-otp", { email });
       alert("Verification code resent to your email.");
     } catch (err) {
       alert(err);

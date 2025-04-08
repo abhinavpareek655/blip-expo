@@ -55,7 +55,7 @@ const ProfileScreen = () => {
       if (!email) throw new Error("Email not found in AsyncStorage");
       console.log("[FETCH] Email from storage:", email);
   
-      const provider = new JsonRpcProvider("http://192.168.112.238:8545");
+      const provider = new JsonRpcProvider("http://10.50.15.98:8545");
       const authContract = new Contract(
         AUTH_CONTRACT_ADDRESS,
         BlipAuthABI.abi,

@@ -37,7 +37,7 @@ const ForgotPasswordScreen = () => {
       setLoading(true);
       setError("");
 
-      const response = await axios.post("http://192.168.112.238:5000/send-otp", {
+      const response = await axios.post("http://10.50.15.98:5000/send-otp", {
         email: normalizedEmail,
       });
 

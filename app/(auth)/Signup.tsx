@@ -77,7 +77,7 @@ const SignupScreen = () => {
     try {
       setIsLoading(true);
 
-      await fetch("http://192.168.112.238:5000/send-otp", {
+      await fetch("http://10.50.15.98:5000/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: normalizedEmail }),
