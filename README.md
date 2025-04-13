@@ -1,50 +1,59 @@
-# Welcome to your Expo app 👋
+# Blip – Decentralized Social Media App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Blip is a decentralized social media application that empowers users with enhanced data ownership, security, and transparency. Built with React Native and Expo for the frontend, and Ethereum smart contracts written in Solidity for the backend, Blip ensures that users have full control over their content. Media files are stored using IPFS, providing a censorship-resistant and tamper-proof experience.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Decentralized Identity**: Users authenticate via Ethereum wallets, ensuring secure and private access.
+- **Smart Contract Integration**: Core functionalities like posting and user interactions are managed through Ethereum smart contracts.
+- **IPFS Media Storage**: All media content is stored on IPFS, ensuring decentralized and reliable access.
+- **Cross-Platform Compatibility**: Developed with React Native and Expo, Blip runs seamlessly on both Android and iOS devices.
 
+## Tech Stack
+
+- **Frontend**: React Native, Expo
+- **Blockchain**: Ethereum, Solidity
+- **Storage**: IPFS
+- **Development Tools**: Hardhat, Ethers.js
+
+## Installation
+
+### Prerequisites
+
+- Node.js and npm
+- Expo CLI (`npm install -g expo-cli`)
+- Ethereum wallet (e.g., MetaMask)
+- IPFS node or access to an IPFS gateway
+
+### Steps
+
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/abhinavpareek655/blip-expo.git
+   cd blip-expo
+   ```
+
+2. **Install Dependencies**:
    ```bash
    npm install
    ```
 
-2. Start the app
-
+3. **Start the Expo Server**:
    ```bash
-    npx expo start
+   npx expo start
    ```
+   This will launch the development server and provide options to run the app on an emulator or physical device.
 
-In the output, you'll find options to open the app in a
+## Usage
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- **Authentication**: Users connect their Ethereum wallets to authenticate.
+- **Posting Content**: Users can create posts, which are stored on IPFS and referenced on the Ethereum blockchain.
+- **Viewing Content**: The app fetches and displays content from IPFS, ensuring decentralized access.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Contributing
 
-## Get a fresh project
+Contributions are welcome! Please fork the repository and submit a pull request with your enhancements.
 
-When you're ready, run:
+---
 
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+For more details, visit the [Blip GitHub Repository](https://github.com/abhinavpareek655/blip-expo.git).
