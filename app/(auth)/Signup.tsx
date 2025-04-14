@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import { useState, useEffect, useCallback } from "react";
 import {
   View,
@@ -16,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { initContract, signupOnChain } from "../../blockchain/authContract";
+import { initContract } from "../../blockchain/authContract";
 
 const SignupScreen = () => {
   const router = useRouter();

@@ -1,5 +1,4 @@
-"use client"
-
+import 'react-native-get-random-values';
 import { useState, useRef } from "react"
 import {
   View,
@@ -20,8 +19,9 @@ import { useRouter } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute } from '@react-navigation/native';
 import axios from "axios";
-import { signupOnChain } from "../../blockchain/authContract";
+import { signupOnChain, createUserWallet, createProfileOnChain } from "../../blockchain/authContract";
 import { initProfileContract, createProfile } from "../../blockchain/profileContract";
+import { HDNodeWallet, JsonRpcProvider, parseEther, ethers } from "ethers";
 
 type VerificationScreenRouteProp = RouteProp<{ params: { email: string, password: string } }, 'params'>;
 
@@ -75,21 +75,19 @@ const VerificationScreen = () => {
       }
     }
   };
-  
-  
 
   const handleVerify = async () => {
-    const verificationCode = code.join('');
-  
+    const verificationCode = code.join("");
+
     if (verificationCode.length !== 6) {
-      setError('not enough digits');
+      setError("Please enter 6 digit verification code");
       return;
     }
-  
+
     try {
       setLoading(true);
-      setError('');
-  
+      setError("");
+
       const response = await axios.post(
         `${process.env.EXPO_PUBLIC_BACKEND_URL}/verify-otp`,
         {
@@ -97,20 +95,30 @@ const VerificationScreen = () => {
           code: verificationCode,
         }
       );
-  
+
       if (response.data.success) {
         try {
+          const wallet: HDNodeWallet = createUserWallet();
+
+          const provider = new JsonRpcProvider(process.env.EXPO_PUBLIC_RPC_URL);
+          const funder = await provider.getSigner(0);
+          const txFund = await funder.sendTransaction({
+            to: wallet.address,
+            value: parseEther("1")
+          });
+          await txFund.wait();
+          console.log("[VERIFY] Wallet funded:", wallet.address);
+
           console.log("[VERIFY] Signing up on chain...");
-          await signupOnChain(email, password);
-  
+          await signupOnChain(wallet, email, password);
+
           console.log("[VERIFY] Initializing profile contract...");
           await initProfileContract();
-  
+
           console.log("[VERIFY] Creating on-chain profile...");
-          await createProfile("User", email, "I am a Blip User"); 
-  
+          await createProfileOnChain(wallet, "User", email, "I am a Blip User");
+
           await AsyncStorage.setItem("userToken", email.trim().toLowerCase());
-  
           console.log("[VERIFY] Profile created. Redirecting...");
           router.replace("../(app)");
         } catch (profileError) {
@@ -120,16 +128,14 @@ const VerificationScreen = () => {
       }
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || 'Verification failed');
+        setError(err.response?.data?.message || "Verification failed");
       } else {
-        setError('Verification failed');
+        setError("Verification failed");
       }
     } finally {
       setLoading(false);
     }
   };
-  
-
   
   const handleResendCode = async () => {
     try {
@@ -310,4 +316,3 @@ const styles = StyleSheet.create({
 })
 
 export default VerificationScreen
-

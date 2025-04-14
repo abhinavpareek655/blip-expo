@@ -1,3 +1,4 @@
+import '../../blockchain/cryptoShim';
 import React, { useState, useCallback } from 'react';
 
 import {

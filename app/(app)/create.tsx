@@ -14,6 +14,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { addTextPost, initProfileContract } from "../../blockchain/profileContract";
 import Toast from "react-native-toast-message";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { HDNodeVoidWallet, HDNodeWallet, JsonRpcProvider, Wallet } from "ethers";
+import { getWalletFromEmail } from "../../blockchain/authContract";
 
 const Create = () => {
   const [postText, setPostText] = useState("");
@@ -28,9 +31,43 @@ const Create = () => {
 
     try {
       setIsLoading(true);
+      
+      // Retrieve email from AsyncStorage (userToken)
+      const email = await AsyncStorage.getItem("userToken");
+      if (!email) {
+        Alert.alert("Error", "Email not found. Please log in again.");
+        return;
+      }
+      
+      // Get on-chain wallet address for verification (optional but recommended)
+      const onChainWalletAddress = await getWalletFromEmail(email);
+      
+      // Retrieve the stored wallet's private key from AsyncStorage
+      const storedPrivateKey = await AsyncStorage.getItem("walletPrivateKey");
+      if (!storedPrivateKey) {
+        Alert.alert("Error", "Wallet not found. Please log in again.");
+        return;
+      }
+      
+      // Reconstruct the wallet and connect it to your Hardhat provider
+      const provider = new JsonRpcProvider(process.env.EXPO_PUBLIC_RPC_URL);
+      const userWallet = new Wallet(storedPrivateKey).connect(provider);
+      
+      // (Optional) Validate that the recovered wallet matches the on-chain record
+      if (
+        userWallet.address.toLowerCase() !== onChainWalletAddress.toLowerCase()
+      ) {
+        Alert.alert("Error", "Wallet mismatch. Please log in again.");
+        return;
+      }
+      
+      // Initialize the Profile contract using the user wallet
       await initProfileContract();
+      
+      // Create the post on-chain
       await addTextPost(postText.trim(), isPublic);
 
+      // Clear input fields and reset settings
       setPostText("");
       setIsPublic(true);
 

@@ -1,3 +1,4 @@
+import '../../blockchain/cryptoShim';
 import { Tabs, useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import { Platform, View, ActivityIndicator, AppState } from 'react-native';

@@ -1,43 +1,70 @@
-import { JsonRpcProvider, Contract, keccak256, toUtf8Bytes } from "ethers";
+import 'react-native-get-random-values';
+import { JsonRpcProvider, Contract, keccak256, toUtf8Bytes, HDNodeWallet } from "ethers";
 import AuthABI from "./BlipAuth.json";
+import { ethers } from "ethers";
+import ProfileABI from "./BlipProfile.json";
 
 const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_AUTH_CONTRACT!;
 const RPC_URL = process.env.EXPO_PUBLIC_RPC_URL!;
+const PROFILE_CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_PROFILE_CONTRACT!;
 
 let provider: JsonRpcProvider;
-let signerContract: Contract;
 let readOnlyContract: Contract;
 
 /**
- * Initializes both signer-based and read-only contracts
+ * Initializes the provider and read-only contract instance.
  */
 export const initContract = async () => {
   provider = new JsonRpcProvider(RPC_URL);
-
-  const signer = await provider.getSigner();
-  signerContract = new Contract(CONTRACT_ADDRESS, AuthABI.abi, signer);
   readOnlyContract = new Contract(CONTRACT_ADDRESS, AuthABI.abi, provider);
-
-  console.log("[CONTRACT] Initialized signer and read-only contract");
+  console.log("[CONTRACT] Initialized provider and read-only contract");
 };
 
 /**
- * Write function: Sign up user (writes to chain)
+ * Creates a new random wallet (HDNodeWallet) and connects it to the provider.
  */
-export const signupOnChain = async (email: string, password: string) => {
-  if (!signerContract) throw new Error("Signer contract not initialized");
+export const createUserWallet = (): HDNodeWallet => {
+  const wallet = ethers.Wallet.createRandom().connect(provider);
+  console.log("[WALLET] New wallet created:", wallet.address);
+  return wallet;
+};
 
+/**
+ * Write function: Sign up user using the provided wallet.
+ */
+export const signupOnChain = async (wallet: HDNodeWallet, email: string, password: string) => {
+  const walletSignerContract = new Contract(CONTRACT_ADDRESS, AuthABI.abi, wallet);
   const normalizedEmail = email.trim().toLowerCase();
-  console.log("[SIGNUP] Preparing to signup user:", normalizedEmail);
+  console.log("[SIGNUP] Preparing to sign up user:", normalizedEmail);
 
-  const tx = await signerContract.signup(normalizedEmail, password.trim());
+  const tx = await walletSignerContract.signup(normalizedEmail, password.trim());
   console.log("[SIGNUP] Transaction sent. Hash:", tx.hash);
   await tx.wait();
   console.log("[SIGNUP] Transaction confirmed.");
 };
 
 /**
- * Read-only function: Log in (reads from chain)
+ * Write function: Create user profile using the provided wallet.
+ */
+export const createProfileOnChain = async (
+  wallet: HDNodeWallet, 
+  name: string, 
+  email: string, 
+  bio: string
+) => {
+  // Use the profile contract's ABI and address here:
+  const walletSignerContract = new Contract(PROFILE_CONTRACT_ADDRESS, ProfileABI.abi, wallet);
+  const normalizedEmail = email.trim().toLowerCase();
+  console.log("[PROFILE] Creating profile for:", normalizedEmail);
+
+  const tx = await walletSignerContract.createProfile(name, normalizedEmail, bio);
+  console.log("[PROFILE] Transaction sent. Hash:", tx.hash);
+  await tx.wait();
+  console.log("[PROFILE] Profile creation confirmed.");
+};
+
+/**
+ * Read-only function: Log in (reads from chain).
  */
 export const loginOnChain = async (email: string, password: string): Promise<boolean> => {
   if (!readOnlyContract) throw new Error("Read-only contract not initialized");
@@ -56,7 +83,7 @@ export const loginOnChain = async (email: string, password: string): Promise<boo
 };
 
 /**
- * Get wallet address associated with hashed email
+ * Read-only function: Get wallet address associated with hashed email.
  */
 export const getWalletFromEmail = async (email: string): Promise<string> => {
   if (!readOnlyContract) throw new Error("Contract not initialized");
