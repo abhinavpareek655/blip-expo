@@ -1,4 +1,4 @@
-import { Contract, HDNodeWallet } from "ethers";
+import { Contract, Wallet } from "ethers";
 import BlipPostsABI from "./BlipPosts.json";
 
 const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_POST_CONTRACT!;
@@ -8,9 +8,9 @@ let postContract: Contract;
 /**
  * Initializes the posts contract instance using the user’s wallet.
  *
- * @param wallet - The user’s HDNodeWallet which was used to create their profile.
+ * @param wallet - The user’s Wallet which was used to create their profile.
  */
-export const initPostContract = async (wallet: HDNodeWallet) => {
+export const initPostContract = async (wallet: Wallet) => {
   postContract = new Contract(CONTRACT_ADDRESS, BlipPostsABI.abi, wallet);
 };
 

@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { addTextPost, initProfileContract } from "../../blockchain/profileContract";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { HDNodeVoidWallet, HDNodeWallet, JsonRpcProvider, Wallet } from "ethers";
+import { Wallet, JsonRpcProvider } from "ethers";
 import { getWalletFromEmail } from "../../blockchain/authContract";
 
 const Create = () => {
@@ -62,7 +62,7 @@ const Create = () => {
       }
       
       // Initialize the Profile contract using the user wallet
-      await initProfileContract();
+      await initProfileContract(userWallet);
       
       // Create the post on-chain
       await addTextPost(postText.trim(), isPublic);

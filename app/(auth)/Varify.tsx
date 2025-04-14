@@ -21,7 +21,7 @@ import { useRoute } from '@react-navigation/native';
 import axios from "axios";
 import { signupOnChain, createUserWallet, createProfileOnChain } from "../../blockchain/authContract";
 import { initProfileContract, createProfile } from "../../blockchain/profileContract";
-import { HDNodeWallet, JsonRpcProvider, parseEther, ethers } from "ethers";
+import { Wallet, JsonRpcProvider, parseEther, ethers } from "ethers";
 
 type VerificationScreenRouteProp = RouteProp<{ params: { email: string, password: string } }, 'params'>;
 
@@ -98,7 +98,7 @@ const VerificationScreen = () => {
 
       if (response.data.success) {
         try {
-          const wallet: HDNodeWallet = createUserWallet();
+          const wallet: Wallet = createUserWallet();
 
           const provider = new JsonRpcProvider(process.env.EXPO_PUBLIC_RPC_URL);
           const funder = await provider.getSigner(0);
@@ -113,12 +113,18 @@ const VerificationScreen = () => {
           await signupOnChain(wallet, email, password);
 
           console.log("[VERIFY] Initializing profile contract...");
-          await initProfileContract();
+          await initProfileContract(wallet);
 
           console.log("[VERIFY] Creating on-chain profile...");
           await createProfileOnChain(wallet, "User", email, "I am a Blip User");
 
           await AsyncStorage.setItem("userToken", email.trim().toLowerCase());
+          await AsyncStorage.setItem("walletPrivateKey", wallet.privateKey);
+
+          //temperory line of code for testing remove this sfter testing:
+          const stored = await AsyncStorage.getItem("walletPrivateKey");
+          console.log("Stored wallet key:", stored);
+
           console.log("[VERIFY] Profile created. Redirecting...");
           router.replace("../(app)");
         } catch (profileError) {

@@ -11,6 +11,8 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { JsonRpcProvider, Wallet } from "ethers";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getProfileByEmail, initProfileContract } from "../../blockchain/profileContract";
 
 const SearchScreen = () => {
@@ -25,7 +27,21 @@ const SearchScreen = () => {
   
     setLoading(true);
     try {
-      await initProfileContract();
+      // Retrieve the current user's wallet private key from storage.
+      const storedPrivateKey = await AsyncStorage.getItem("walletPrivateKey");
+      if (!storedPrivateKey) {
+        Alert.alert("Error", "Wallet not found. Please log in again.");
+        setLoading(false);
+        return;
+      }
+      // Reconstruct the user's wallet using the RPC provider.
+      const provider = new JsonRpcProvider(process.env.EXPO_PUBLIC_RPC_URL);
+      const userWallet = new Wallet(storedPrivateKey).connect(provider);
+      
+      // Initialize the profile contract using the reconstructed wallet.
+      await initProfileContract(userWallet);
+      
+      // Now call getProfileByEmail. This function expects a profile to be registered on-chain.
       const profile = await getProfileByEmail(email.trim().toLowerCase());
       setUser(profile);
     } catch (err: any) {
@@ -152,7 +168,6 @@ const styles = StyleSheet.create({
     marginTop: 30,
     textAlign: "center",
   }
-  
 });
 
 export default SearchScreen;

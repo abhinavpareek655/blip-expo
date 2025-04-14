@@ -1,15 +1,19 @@
-import { JsonRpcProvider, Contract } from "ethers";
+import { Contract, Wallet } from "ethers";
 import BlipProfileABI from "./BlipProfile.json";
 
 const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_PROFILE_CONTRACT!;
-const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
 
 let profileContract: Contract;
 
-export const initProfileContract = async () => {
-  const provider = new JsonRpcProvider(PROVIDER_URL);
-  const signer = await provider.getSigner();
-  profileContract = new Contract(CONTRACT_ADDRESS, BlipProfileABI.abi, signer);
+/**
+ * Initializes the profile contract instance using the supplied user wallet.
+ * @param wallet - The user’s Wallet used to sign on-chain transactions.
+ */
+export const initProfileContract = async (wallet: Wallet) => {
+  if (!wallet) {
+    throw new Error("A funded wallet is required to initialize the Profile contract");
+  }
+  profileContract = new Contract(CONTRACT_ADDRESS, BlipProfileABI.abi, wallet);
 };
 
 export const createProfile = async (

@@ -18,7 +18,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { Contract, JsonRpcProvider, keccak256, toUtf8Bytes } from "ethers";
+import { Contract, JsonRpcProvider, keccak256, toUtf8Bytes, Wallet } from "ethers";
 import {
   initProfileContract,
   getProfile,
@@ -27,6 +27,7 @@ import {
 import BlipAuthABI from "../../blockchain/BlipAuth.json";
 
 const AUTH_CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_AUTH_CONTRACT!;
+const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
 const clearAsyncStorage = async () => {
@@ -46,24 +47,39 @@ const ProfileScreen = () => {
 
   const fetchUserProfile = async () => {
     try {
+      // Retrieve email from storage.
       const email = await AsyncStorage.getItem("userToken");
       if (!email) throw new Error("Email not found");
 
-      const provider = new JsonRpcProvider(process.env.EXPO_PUBLIC_RPC_URL);
+      // Create a provider and build a read-only instance of the Auth contract.
+      const provider = new JsonRpcProvider(PROVIDER_URL);
       const authContract = new Contract(AUTH_CONTRACT_ADDRESS, BlipAuthABI.abi, provider);
 
+      // Compute the email hash and get the on-chain wallet.
       const emailHash = keccak256(toUtf8Bytes(email.trim().toLowerCase()));
-      const wallet = await authContract.getUserByEmailHash(emailHash);
-
-      if (!wallet || wallet === "0x0000000000000000000000000000000000000000") {
+      const onChainWallet = await authContract.getUserByEmailHash(emailHash);
+      if (!onChainWallet || onChainWallet === "0x0000000000000000000000000000000000000000") {
         throw new Error("No wallet found for this email");
       }
 
-      await initProfileContract();
-      const profile = await getProfile(wallet);
+      // Retrieve the stored wallet's private key.
+      const storedPrivateKey = await AsyncStorage.getItem("walletPrivateKey");
+      if (!storedPrivateKey) throw new Error("Wallet not found");
 
+      // Reconstruct the user's wallet and connect to the provider.
+      const userWallet = new Wallet(storedPrivateKey).connect(provider);
+
+      // Validate that the reconstructed wallet matches the on-chain record.
+      if (userWallet.address.toLowerCase() !== onChainWallet.toLowerCase()) {
+        throw new Error("Wallet mismatch");
+      }
+
+      // Initialize the Profile contract with the proper wallet (runner) so that calls are supported.
+      await initProfileContract(userWallet);
+
+      // Retrieve profile data using the user's wallet address.
+      const profile = await getProfile(userWallet.address);
       const createdAt = Number(profile.createdAt?.toString?.() || profile.createdAt) || 0;
-
       const formattedPosts = Array.isArray(profile.posts)
         ? profile.posts.map((p, index) => ({
             id: index.toString(),
@@ -72,11 +88,10 @@ const ProfileScreen = () => {
             isPublic: p.isPublic,
           }))
         : [];
-
       setUserProfile({
         ...profile,
         email,
-        wallet,
+        wallet: userWallet.address,
         createdAt,
         posts: formattedPosts,
       });
@@ -210,10 +225,7 @@ const ProfileScreen = () => {
               <TouchableOpacity
                 onPress={async () => {
                   try {
-                    await updateProfileOnChain(
-                      newName || userProfile.name,
-                      newBio || userProfile.bio
-                    );
+                    await updateProfileOnChain(newName || userProfile.name, newBio || userProfile.bio);
                     setUserProfile((prev: any) => ({
                       ...prev,
                       name: newName || prev.name,

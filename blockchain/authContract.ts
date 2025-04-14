@@ -1,5 +1,5 @@
 import 'react-native-get-random-values';
-import { JsonRpcProvider, Contract, keccak256, toUtf8Bytes, HDNodeWallet } from "ethers";
+import { JsonRpcProvider, Contract, keccak256, toUtf8Bytes, Wallet } from "ethers";
 import AuthABI from "./BlipAuth.json";
 import { ethers } from "ethers";
 import ProfileABI from "./BlipProfile.json";
@@ -21,18 +21,17 @@ export const initContract = async () => {
 };
 
 /**
- * Creates a new random wallet (HDNodeWallet) and connects it to the provider.
+ * Creates a new random wallet (Wallet) and connects it to the provider.
  */
-export const createUserWallet = (): HDNodeWallet => {
-  const wallet = ethers.Wallet.createRandom().connect(provider);
+export const createUserWallet = (): Wallet => {
+  const wallet = ethers.Wallet.createRandom().connect(provider) as unknown as Wallet;
   console.log("[WALLET] New wallet created:", wallet.address);
   return wallet;
 };
-
 /**
  * Write function: Sign up user using the provided wallet.
  */
-export const signupOnChain = async (wallet: HDNodeWallet, email: string, password: string) => {
+export const signupOnChain = async (wallet: Wallet, email: string, password: string) => {
   const walletSignerContract = new Contract(CONTRACT_ADDRESS, AuthABI.abi, wallet);
   const normalizedEmail = email.trim().toLowerCase();
   console.log("[SIGNUP] Preparing to sign up user:", normalizedEmail);
@@ -47,7 +46,7 @@ export const signupOnChain = async (wallet: HDNodeWallet, email: string, passwor
  * Write function: Create user profile using the provided wallet.
  */
 export const createProfileOnChain = async (
-  wallet: HDNodeWallet, 
+  wallet: Wallet, 
   name: string, 
   email: string, 
   bio: string
