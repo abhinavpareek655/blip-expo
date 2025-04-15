@@ -14,6 +14,7 @@ import {
   RefreshControl,
   Clipboard,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -25,6 +26,7 @@ import {
   updateProfileOnChain,
 } from "../../blockchain/profileContract";
 import BlipAuthABI from "../../blockchain/BlipAuth.json";
+import { generateAvatarUrl } from '../../blockchain/genAvatar';
 
 const AUTH_CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_AUTH_CONTRACT!;
 const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
@@ -74,7 +76,7 @@ const ProfileScreen = () => {
         throw new Error("Wallet mismatch");
       }
 
-      // Initialize the Profile contract with the proper wallet (runner) so that calls are supported.
+      // Initialize the Profile contract with the proper wallet so that calls are supported.
       await initProfileContract(userWallet);
 
       // Retrieve profile data using the user's wallet address.
@@ -142,6 +144,11 @@ const ProfileScreen = () => {
         </View>
 
         <View style={styles.profileInfo}>
+          {/* Display Avatar */}
+          <Image
+            source={{ uri: generateAvatarUrl(userProfile.wallet) }}
+            style={styles.avatarProfile}
+          />
           <Text style={styles.name}>{userProfile.name}</Text>
           <Text style={styles.bio}>Bio: {userProfile.bio}</Text>
           <Text style={styles.detailText}>Email: {userProfile.email}</Text>
@@ -252,7 +259,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#121212" },
   header: { padding: 15, borderBottomWidth: 1, borderBottomColor: "#2C2C2C" },
   headerTitle: { fontSize: 18, fontWeight: "bold", color: "#ffffff" },
-  profileInfo: { alignItems: "center", padding: 20 },
+  profileInfo: { alignItems: "center", padding: 20, marginBottom: 20 },
+  avatarProfile: { width: 70, height: 70, borderRadius: 50, marginBottom: 10 },
   name: { fontSize: 20, fontWeight: "bold", color: "#ffffff", marginBottom: 5 },
   bio: { fontSize: 14, color: "#888", textAlign: "center", paddingHorizontal: 20 },
   detailText: { fontSize: 13, color: "#bbb", textAlign: "center", marginTop: 2 },

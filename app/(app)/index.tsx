@@ -13,6 +13,7 @@ import {
 import { JsonRpcProvider, Contract } from 'ethers';
 import BlipProfileABI from '../../blockchain/BlipProfile.json';
 import Post from '../(post)/Post';
+import { getProfile } from '@/blockchain/profileContract';
 
 const PROFILE_CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_PROFILE_CONTRACT!;
 const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
@@ -27,17 +28,32 @@ export const initContract = async () => {
 export const getAdminPosts = async () => {
   if (!profileContract) await initContract();
   const result = await profileContract.getAdminPosts();
-
-  // Assuming your smart contract returns an array of Post structs
-  return result
-    .map((p: any, idx: number) => ({
-      id: p.id ? p.id.toString() : idx.toString(),
-      owner: p.owner,
-      text: p.text,
-      timestamp: Number(p.timestamp),
-      isPublic: p.isPublic,
-    }))
-    .sort((a: { timestamp: number }, b: { timestamp: number }) => b.timestamp - a.timestamp);
+  
+  // Map each post and fetch its profile details asynchronously.
+  const posts = await Promise.all(
+    result.map(async (p: any, idx: number) => {
+      const ownerAddress = p.owner;
+      // Fetch profile data for owner; fallback to defaults if error
+      let profileData = { name: ownerAddress.slice(0,6), email: "user@example.com" };
+      try {
+        profileData = await getProfile(ownerAddress);
+      } catch (error) {
+        console.error("Error fetching profile for", ownerAddress, error);
+      }
+      return {
+        id: p.id ? p.id.toString() : idx.toString(),
+        owner: { address: ownerAddress, isFriend: false },
+        text: p.text,
+        timestamp: Number(p.timestamp),
+        isPublic: p.isPublic,
+        name: profileData.name,
+        email: profileData.email,
+        likes: 0,
+        comments: 0,
+      };
+    })
+  );
+  return posts.sort((a: any, b: any) => b.timestamp - a.timestamp);
 };
 
 export default function HomeScreen() {
@@ -81,19 +97,17 @@ export default function HomeScreen() {
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchPosts} />}
           renderItem={({ item }) => (
-            <Post post={{
-              // Convert our post object to the expected structure
-              owner: {
-                address: item.owner,
-                isFriend: false, // update friend logic as needed
-              },
-              name: item.owner ? item.owner.slice(0, 6) : "Unknown", // fallback, or merge with profile data if available
-              email: "user@example.com", // fallback email if not available on-chain
-              content: item.text,
-              likes: 0,         // If likeCount is available, use it here
-              comments: 0,
-              timestamp: new Date(item.timestamp * 1000).toLocaleString(),
-            }} />
+            <Post
+              post={{
+                owner: item.owner,
+                name: item.name,
+                email: item.email,
+                content: item.text,
+                likes: item.likes,
+                comments: item.comments,
+                timestamp: new Date(item.timestamp * 1000).toLocaleString(),
+              }}
+            />
           )}
           contentContainerStyle={{ padding: 16 }}
         />
