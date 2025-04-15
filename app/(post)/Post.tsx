@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+// Import our custom avatar generator.
+import { generateAvatarUrl } from '../../blockchain/genAvatar';
 
 interface PostOwner {
   address: string;
@@ -27,14 +29,14 @@ interface PostProps {
 export default function Post({ post, onAddFriend }: PostProps) {
   const [liked, setLiked] = useState(false);
   const [friendAdded, setFriendAdded] = useState(post.owner.isFriend);
-  
+
+  // Generate avatar URL using the owner's wallet address.
+  const avatarUrl = generateAvatarUrl(post.owner.address);
+
   return (
     <View style={styles.postContainer}>
       <View style={styles.postHeader}>
-        <Image 
-          source={{ uri: "https://cdn-icons-png.flaticon.com/128/1077/1077012.png" }} 
-          style={styles.avatar} 
-        />
+        <Image source={{ uri: avatarUrl }} style={styles.avatar} />
         <View style={styles.headerTextContainer}>
           <Text style={styles.username}>{post.name}</Text>
           <Text style={styles.email}>{post.email}</Text>
@@ -43,24 +45,25 @@ export default function Post({ post, onAddFriend }: PostProps) {
       </View>
       <Text style={styles.postContent}>{post.content}</Text>
       <View style={styles.postActions}>
-        <TouchableOpacity 
-          onPress={() => setLiked(!liked)} 
-          style={styles.actionButton}
-        >
+        <TouchableOpacity onPress={() => setLiked(!liked)} style={styles.actionButton}>
           {liked ? (
             <AntDesign name="like1" size={24} color="white" />
           ) : (
             <AntDesign name="like2" size={24} color="white" />
           )}
-          <Text style={styles.actionText}>
-            {liked ? post.likes + 1 : post.likes}
-          </Text>
+          <Text style={styles.actionText}>{liked ? post.likes + 1 : post.likes}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton}>
           <FontAwesome name="comment-o" size={24} color="white" />
           <Text style={styles.actionText}>{post.comments}</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setFriendAdded(!friendAdded)} style={styles.actionButton}>
+        <TouchableOpacity
+          onPress={() => {
+            setFriendAdded(!friendAdded);
+            if (onAddFriend) onAddFriend();
+          }}
+          style={styles.actionButton}
+        >
           {friendAdded ? (
             <FontAwesome5 name="user-friends" size={24} color="#1DB954" />
           ) : (
@@ -88,7 +91,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    backgroundColor: "#333",
     width: 40,
     height: 40,
     borderRadius: 20,
