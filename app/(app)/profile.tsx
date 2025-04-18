@@ -52,6 +52,15 @@ const ProfileScreen = () => {
   const [copiedAnimation] = useState(new Animated.Value(0));
   const [showCopied, setShowCopied] = useState(false);
   const router = useRouter();
+  
+  // New state variables for private key functionality
+  const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
+  const [password, setPassword] = useState("");
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+  const [privateKeyVisible, setPrivateKeyVisible] = useState(false);
+  const [privateKey, setPrivateKey] = useState("");
+  const [showPrivateKeySection, setShowPrivateKeySection] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const fetchUserProfile = async () => {
     try {
@@ -135,6 +144,62 @@ const ProfileScreen = () => {
     ]).start(() => {
       setShowCopied(false);
     });
+  };
+
+  // Function to verify password and show private key
+  const verifyPasswordAndShowKey = async () => {
+    if (!password.trim()) {
+      setPasswordError("Please enter your password");
+      return;
+    }
+
+    try {
+      setVerifyingPassword(true);
+      setPasswordError(null);
+
+      // Get the stored password hash
+      const storedHash = await AsyncStorage.getItem("passwordHash");
+      if (!storedHash) {
+        Alert.alert("Error", "Password hash not found. Please log in again.");
+        return;
+      }
+
+      // Compute hash of entered password
+      const computedHash = keccak256(toUtf8Bytes(password.trim()));
+
+      // Compare hashes
+      if (computedHash !== storedHash) {
+        setPasswordError("Incorrect password");
+        return;
+      }
+
+      // Retrieve the private key
+      const privateKey = await AsyncStorage.getItem("walletPrivateKey");
+      if (!privateKey) {
+        Alert.alert("Error", "Private key not found. Please log in again.");
+        return;
+      }
+
+      // Set the private key and close the modal
+      setPrivateKey(privateKey);
+      setShowPrivateKeyModal(false);
+      setShowPrivateKeySection(true);
+      
+      // Reset password field
+      setPassword("");
+    } catch (error) {
+      console.error("[VERIFY PASSWORD ERROR]", error);
+      Alert.alert("Error", "Failed to verify password");
+    } finally {
+      setVerifyingPassword(false);
+    }
+  };
+
+  // Function to handle cancel button in password modal
+  const handleCancelPasswordModal = () => {
+    setShowPrivateKeyModal(false);
+    setPassword("");
+    setPasswordError(null);
   };
 
   const renderPostItem = ({ item }: { item: any }) => {
@@ -274,13 +339,74 @@ const ProfileScreen = () => {
             </View>
           </View>
           
-          <TouchableOpacity 
-            style={styles.editProfileButton} 
-            onPress={() => setEditModalVisible(true)}
-          >
-            <Ionicons name="pencil-outline" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.editProfileButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
+          {/* Private Key Section (shown after verification) */}
+          {showPrivateKeySection && (
+            <View style={styles.privateKeySection}>
+              <View style={styles.privateKeyHeader}>
+                <MaterialCommunityIcons name="key" size={18} color="#E0A458" style={styles.privateKeyIcon} />
+                <Text style={styles.privateKeyTitle}>Private Key</Text>
+                <TouchableOpacity 
+                  style={styles.closePrivateKeyButton}
+                  onPress={() => {
+                    setShowPrivateKeySection(false);
+                    setPrivateKeyVisible(false);
+                    setPrivateKey("");
+                  }}
+                >
+                  <Ionicons name="close-circle" size={20} color="#888" />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.privateKeyContainer}>
+                <Text style={styles.privateKeyText}>
+                  {privateKeyVisible 
+                    ? privateKey 
+                    : "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"}
+                </Text>
+                <View style={styles.privateKeyActions}>
+                  <TouchableOpacity 
+                    style={styles.toggleVisibilityButton}
+                    onPress={() => setPrivateKeyVisible(!privateKeyVisible)}
+                  >
+                    <Ionicons 
+                      name={privateKeyVisible ? "eye-off-outline" : "eye-outline"} 
+                      size={20} 
+                      color="#BBBBBB" 
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.copyKeyButton}
+                    onPress={() => copyToClipboard(privateKey)}
+                  >
+                    <Ionicons name="copy-outline" size={20} color="#1DB954" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              <Text style={styles.privateKeyWarning}>
+                Never share your private key with anyone. Anyone with your private key has full control of your wallet.
+              </Text>
+            </View>
+          )}
+          
+          <View style={styles.profileButtonsContainer}>
+            <TouchableOpacity 
+              style={styles.editProfileButton} 
+              onPress={() => setEditModalVisible(true)}
+            >
+              <Ionicons name="pencil-outline" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.editProfileButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
+            
+            {/* Show Private Key Button */}
+            <TouchableOpacity 
+              style={styles.showPrivateKeyButton} 
+              onPress={() => setShowPrivateKeyModal(true)}
+            >
+              <MaterialCommunityIcons name="key-outline" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.showPrivateKeyButtonText}>Show Private Key</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         
         {/* Stats Card */}
@@ -391,6 +517,90 @@ const ProfileScreen = () => {
                 }}
               >
                 <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* Password Verification Modal for Private Key */}
+      <Modal
+        visible={showPrivateKeyModal}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Verify Password</Text>
+              <TouchableOpacity 
+                style={styles.modalCloseButton}
+                onPress={handleCancelPasswordModal}
+                disabled={verifyingPassword}
+              >
+                <Ionicons name="close" size={24} color="#888" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              <View style={styles.securityIconContainer}>
+                <MaterialCommunityIcons name="shield-key" size={40} color="#1DB954" />
+              </View>
+              
+              <Text style={styles.securityMessage}>
+                For your security, please enter your password to view your private key
+              </Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View style={styles.passwordInputContainer}>
+                  <TextInput
+                    placeholder="Enter your password"
+                    placeholderTextColor="#666"
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (passwordError) setPasswordError(null);
+                    }}
+                    style={styles.passwordInput}
+                    secureTextEntry={true}
+                    editable={!verifyingPassword}
+                    autoCapitalize="none"
+                  />
+                </View>
+                
+                {passwordError && (
+                  <View style={styles.passwordErrorContainer}>
+                    <Ionicons name="alert-circle" size={16} color="#E74C3C" />
+                    <Text style={styles.passwordErrorText}>{passwordError}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={handleCancelPasswordModal}
+                disabled={verifyingPassword}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.confirmButton, verifyingPassword && styles.disabledButton]}
+                onPress={verifyPasswordAndShowKey}
+                disabled={verifyingPassword}
+              >
+                {verifyingPassword ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.confirmButtonText}> Verifying...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.confirmButtonText}>Confirm</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -534,6 +744,9 @@ const styles = StyleSheet.create({
     padding: 4,
     marginLeft: 8,
   },
+  profileButtonsContainer: {
+    gap: 12,
+  },
   editProfileButton: {
     backgroundColor: "#1DB954",
     paddingVertical: 12,
@@ -545,6 +758,22 @@ const styles = StyleSheet.create({
   },
   editProfileButtonText: { 
     color: "#ffffff", 
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  showPrivateKeyButton: {
+    backgroundColor: "#333333",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#444444",
+  },
+  showPrivateKeyButtonText: {
+    color: "#ffffff",
     fontWeight: "bold",
     fontSize: 16,
   },
@@ -717,6 +946,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+    borderRadius: 8,
+    backgroundColor: "#1DB954",
+  },
+  confirmButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  disabledButton: {
+    backgroundColor: "rgba(29, 185, 84, 0.6)",
+  },
   copiedNotification: {
     position: "absolute",
     bottom: 20,
@@ -731,6 +977,102 @@ const styles = StyleSheet.create({
   copiedText: {
     color: "#FFF",
     fontWeight: "bold",
+  },
+  // New styles for private key functionality
+  securityIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(29, 185, 84, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  securityMessage: {
+    color: "#BBBBBB",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  passwordInputContainer: {
+    backgroundColor: "#2C2C2C",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#444444",
+  },
+  passwordInput: {
+    color: "#fff",
+    fontSize: 16,
+    padding: 12,
+  },
+  passwordErrorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  passwordErrorText: {
+    color: "#E74C3C",
+    fontSize: 14,
+    marginLeft: 6,
+  },
+  privateKeySection: {
+    backgroundColor: "#252525",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: "#E0A458",
+  },
+  privateKeyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  privateKeyIcon: {
+    marginRight: 8,
+  },
+  privateKeyTitle: {
+    color: "#E0A458",
+    fontSize: 16,
+    fontWeight: "bold",
+    flex: 1,
+  },
+  closePrivateKeyButton: {
+    padding: 4,
+  },
+  privateKeyContainer: {
+    backgroundColor: "#1A1A1A",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#333333",
+  },
+  privateKeyText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    flex: 1,
+  },
+  privateKeyActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  toggleVisibilityButton: {
+    padding: 8,
+    marginRight: 4,
+  },
+  copyKeyButton: {
+    padding: 8,
+  },
+  privateKeyWarning: {
+    color: "#E74C3C",
+    fontSize: 12,
+    fontStyle: "italic",
   },
 });
 

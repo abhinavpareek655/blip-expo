@@ -12,8 +12,10 @@ import {
   ActivityIndicator,
   TouchableWithoutFeedback,
   Keyboard,
+  StatusBar,
+  Animated,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,6 +29,8 @@ const SignupScreen = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shakeAnimation] = useState(new Animated.Value(0));
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -47,33 +51,97 @@ const SignupScreen = () => {
     init();
   }, []);
 
-  const getPasswordStrength = (password: string): "Weak" | "Medium" | "Strong" => {
-    if (password.length < 8) return "Weak";
+  const getPasswordStrength = (password: string): "weak" | "medium" | "strong" => {
+    if (!password) return "weak";
+    if (password.length < 8) return "weak";
+    
     const hasLower = /[a-z]/.test(password);
     const hasUpper = /[A-Z]/.test(password);
     const hasNumber = /\d/.test(password);
     const hasSpecial = /[@$!%*?&]/.test(password);
-    if (hasLower && hasUpper && hasNumber && hasSpecial) return "Strong";
-    if ((hasLower || hasUpper) && hasNumber) return "Medium";
-    return "Weak";
+    
+    if (hasLower && hasUpper && hasNumber && hasSpecial) return "strong";
+    if ((hasLower || hasUpper) && hasNumber) return "medium";
+    return "weak";
+  };
+
+  const getPasswordStrengthColor = (strength: "weak" | "medium" | "strong") => {
+    switch (strength) {
+      case "weak": return "#E74C3C";
+      case "medium": return "#F39C12";
+      case "strong": return "#1DB954";
+      default: return "#333333";
+    }
+  };
+
+  const getPasswordStrengthText = (strength: "weak" | "medium" | "strong") => {
+    switch (strength) {
+      case "weak": return "Weak password";
+      case "medium": return "Medium strength";
+      case "strong": return "Strong password";
+      default: return "";
+    }
   };
 
   const togglePasswordVisibility = useCallback(() => {
     setShowPassword(prev => !prev);
   }, []);
 
+  const shakeInputs = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: 0, duration: 50, useNativeDriver: true })
+    ]).start();
+  };
+
   const handleSignUp = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (!email) return setError("no email");
-    if (!emailRegex.test(normalizedEmail)) return setError("invalid email");
-    if (!password) return setError("no password");
-    if (password.length < 8) return setError("password must be at least 8 characters");
+    if (!email) {
+      setError("no email");
+      shakeInputs();
+      return;
+    }
+    
+    if (!emailRegex.test(normalizedEmail)) {
+      setError("invalid email");
+      shakeInputs();
+      return;
+    }
+    
+    if (!password) {
+      setError("no password");
+      shakeInputs();
+      return;
+    }
+    
+    if (password.length < 8) {
+      setError("password must be at least 8 characters");
+      shakeInputs();
+      return;
+    }
+    
     const strength = getPasswordStrength(password);
-    if (strength === "Weak") return setError("weak password");
-    if (!confirmPassword) return setError("no confirm password");
-    if (password !== confirmPassword) return setError("passwords do not match");
+    if (strength === "weak") {
+      setError("weak password");
+      shakeInputs();
+      return;
+    }
+    
+    if (!confirmPassword) {
+      setError("no confirm password");
+      shakeInputs();
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      setError("passwords do not match");
+      shakeInputs();
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -88,6 +156,7 @@ const SignupScreen = () => {
     } catch (err: any) {
       console.error("Signup error:", err);
       setError("Signup failed. Maybe already registered or invalid.");
+      shakeInputs();
     } finally {
       setIsLoading(false);
     }
@@ -95,97 +164,243 @@ const SignupScreen = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" />
         <ActivityIndicator size="large" color="#1DB954" />
-      </View>
+        <Text style={styles.loadingText}>Initializing...</Text>
+      </SafeAreaView>
     );
   }
+
+  const passwordStrength = getPasswordStrength(password);
+  const strengthColor = getPasswordStrengthColor(passwordStrength);
+  const strengthText = getPasswordStrengthText(passwordStrength);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardAvoidingView}>
-        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#1DB954" />
-          </TouchableOpacity>
-
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>Blip</Text>
-          </View>
-
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join the decentralized social revolution</Text>
-
-          <View style={styles.inputContainer}>
-            <Ionicons name="mail-outline" size={24} color="#ffffff" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor="#666"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-          {error === "no email" && <Text style={styles.errorText}>Please enter an email</Text>}
-          {error === "invalid email" && <Text style={styles.errorText}>Please enter a valid email</Text>}
-
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={24} color="#ffffff" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#666"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              autoComplete="password"
-            />
-            <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
-              <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={24} color="#888" />
+        <StatusBar barStyle="light-content" />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"} 
+          style={styles.keyboardAvoidingView}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+        >
+          <ScrollView 
+            contentContainerStyle={styles.scrollContainer} 
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color="#1DB954" />
             </TouchableOpacity>
-          </View>
-          {error === "no password" && <Text style={styles.errorText}>Please enter a password</Text>}
-          {error === "password must be at least 8 characters" && <Text style={styles.errorText}>Password must be at least 8 characters</Text>}
-          {error === "weak password" && <Text style={styles.errorText}>Password is weak</Text>}
-          {getPasswordStrength(password) === "Medium" && <Text style={styles.mediumPassword}>Password is medium</Text>}
-          {getPasswordStrength(password) === "Strong" && <Text style={styles.strongPassword}>Password is strong</Text>}
 
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={24} color="#ffffff" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Confirm Password"
-              placeholderTextColor="#666"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              autoComplete="password"
-            />
-            <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
-              <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={24} color="#888" />
-            </TouchableOpacity>
-          </View>
-          {error === "no confirm password" && <Text style={styles.errorText}>Please confirm your password</Text>}
-          {error === "passwords do not match" && <Text style={styles.errorText}>Passwords do not match</Text>}
+            <View style={styles.logoContainer}>
+              <View style={styles.logoCircle}>
+                <Text style={styles.logoText}>B</Text>
+              </View>
+              <Text style={styles.appName}>Blip</Text>
+            </View>
 
-          <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>
-            <Text style={styles.signUpButtonText}>Sign Up</Text>
-          </TouchableOpacity>
+            <View style={styles.headerContainer}>
+              <Text style={styles.title}>Create Account</Text>
+              <Text style={styles.subtitle}>Join the decentralized social revolution</Text>
+            </View>
 
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.replace("/Login")}>
-              <Text style={styles.loginLink}>Log In</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            <Animated.View 
+              style={[
+                styles.formContainer,
+                { transform: [{ translateX: shakeAnimation }] }
+              ]}
+            >
+              <View style={styles.inputWrapper}>
+                <View style={[
+                  styles.inputContainer, 
+                  email ? styles.inputContainerActive : {},
+                  error === "no email" || error === "invalid email" ? styles.inputContainerError : {}
+                ]}>
+                  <Ionicons 
+                    name="mail-outline" 
+                    size={20} 
+                    color={email ? "#1DB954" : "#888"} 
+                    style={styles.inputIcon} 
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor="#666"
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      if (error === "no email" || error === "invalid email") setError(null);
+                    }}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                  />
+                </View>
+                {(error === "no email" || error === "invalid email") && (
+                  <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle" size={16} color="#E74C3C" />
+                    <Text style={styles.errorText}>
+                      {error === "no email" ? "Please enter an email" : "Please enter a valid email"}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.inputWrapper}>
+                <View style={[
+                  styles.inputContainer, 
+                  password ? { borderColor: strengthColor } : {},
+                  error === "no password" || error === "password must be at least 8 characters" || error === "weak password" 
+                    ? styles.inputContainerError : {}
+                ]}>
+                  <Ionicons 
+                    name="lock-closed-outline" 
+                    size={20} 
+                    color={password ? strengthColor : "#888"} 
+                    style={styles.inputIcon} 
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Create a password"
+                    placeholderTextColor="#666"
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (error === "no password" || error === "password must be at least 8 characters" || error === "weak password") 
+                        setError(null);
+                    }}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoComplete="password-new"
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
+                  />
+                  <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
+                    <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#888" />
+                  </TouchableOpacity>
+                </View>
+                
+                {password && passwordFocused && (
+                  <View style={styles.strengthContainer}>
+                    <View style={styles.strengthBars}>
+                      <View style={[
+                        styles.strengthBar, 
+                        { backgroundColor: passwordStrength !== "weak" ? strengthColor : "#333" }
+                      ]} />
+                      <View style={[
+                        styles.strengthBar, 
+                        { backgroundColor: passwordStrength === "strong" ? strengthColor : "#333" }
+                      ]} />
+                      <View style={[
+                        styles.strengthBar, 
+                        { backgroundColor: passwordStrength === "strong" ? strengthColor : "#333" }
+                      ]} />
+                    </View>
+                    <Text style={[styles.strengthText, { color: strengthColor }]}>
+                      {strengthText}
+                    </Text>
+                  </View>
+                )}
+                
+                {(error === "no password" || error === "password must be at least 8 characters" || error === "weak password") && (
+                  <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle" size={16} color="#E74C3C" />
+                    <Text style={styles.errorText}>
+                      {error === "no password" ? "Please enter a password" : 
+                       error === "password must be at least 8 characters" ? "Password must be at least 8 characters" : 
+                       "Password is too weak"}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.inputWrapper}>
+                <View style={[
+                  styles.inputContainer, 
+                  confirmPassword ? styles.inputContainerActive : {},
+                  error === "no confirm password" || error === "passwords do not match" ? styles.inputContainerError : {}
+                ]}>
+                  <Ionicons 
+                    name="lock-closed-outline" 
+                    size={20} 
+                    color={confirmPassword ? "#1DB954" : "#888"} 
+                    style={styles.inputIcon} 
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Confirm your password"
+                    placeholderTextColor="#666"
+                    value={confirmPassword}
+                    onChangeText={(text) => {
+                      setConfirmPassword(text);
+                      if (error === "no confirm password" || error === "passwords do not match") setError(null);
+                    }}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoComplete="password-new"
+                  />
+                  <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
+                    <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#888" />
+                  </TouchableOpacity>
+                </View>
+                {(error === "no confirm password" || error === "passwords do not match") && (
+                  <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle" size={16} color="#E74C3C" />
+                    <Text style={styles.errorText}>
+                      {error === "no confirm password" ? "Please confirm your password" : "Passwords do not match"}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.signUpButton, isLoading && styles.buttonDisabled]} 
+                onPress={handleSignUp}
+                disabled={isLoading}
+                activeOpacity={0.8}
+              >
+                {isLoading ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={styles.signUpButtonText}>Creating account...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.signUpButtonText}>Sign Up</Text>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+
+            <View style={styles.loginContainer}>
+              <Text style={styles.loginText}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => router.replace("/Login")}>
+                <Text style={styles.loginLink}>Log In</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.passwordTipsContainer}>
+              <Text style={styles.passwordTipsTitle}>Password Tips:</Text>
+              <View style={styles.passwordTip}>
+                <Ionicons name="checkmark-circle" size={16} color="#1DB954" style={styles.tipIcon} />
+                <Text style={styles.tipText}>At least 8 characters</Text>
+              </View>
+              <View style={styles.passwordTip}>
+                <Ionicons name="checkmark-circle" size={16} color="#1DB954" style={styles.tipIcon} />
+                <Text style={styles.tipText}>Include uppercase & lowercase letters</Text>
+              </View>
+              <View style={styles.passwordTip}>
+                <Ionicons name="checkmark-circle" size={16} color="#1DB954" style={styles.tipIcon} />
+                <Text style={styles.tipText}>Include numbers and special characters</Text>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </TouchableWithoutFeedback>
   );
 };
@@ -197,86 +412,171 @@ const styles = StyleSheet.create({
   },
   keyboardAvoidingView: {
     flex: 1,
-    alignItems: "center",
-    padding: 20,
   },
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   backButton: {
     position: "absolute",
-    top: 40,
-    left: 20,
+    top: 10,
+    left: 0,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#1E1E1E",
+    justifyContent: "center",
+    alignItems: "center",
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 30,
+    marginTop: 60,
+    marginBottom: 40,
+  },
+  logoCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#1DB954",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
   },
   logoText: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: "bold",
-    color: "#ffffff",
+    color: "#FFFFFF",
   },
-  title: {
+  appName: {
     fontSize: 24,
     fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  headerContainer: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
     color: "#ffffff",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: "#888",
-    marginBottom: 30,
+    color: "#BBBBBB",
     textAlign: "center",
+  },
+  formContainer: {
+    width: "100%",
+    marginBottom: 24,
+  },
+  inputWrapper: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1DB954",
+    marginBottom: 8,
+    marginLeft: 4,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1E1E1E",
-    borderRadius: 8,
-    marginBottom: 15,
-    paddingHorizontal: 15,
-    width: "100%",
+    borderWidth: 2,
+    borderColor: "#333333",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  inputContainerActive: {
+    borderColor: "#1DB954",
+  },
+  inputContainerError: {
+    borderColor: "#E74C3C",
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
     color: "#ffffff",
     fontSize: 16,
-    paddingVertical: 15,
   },
   eyeIcon: {
-    padding: 10,
+    padding: 8,
+  },
+  strengthContainer: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  strengthBars: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  strengthBar: {
+    height: 4,
+    width: 50,
+    borderRadius: 2,
+    backgroundColor: "#333",
+  },
+  strengthText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  errorText: {
+    color: "#E74C3C",
+    fontSize: 14,
+    marginLeft: 6,
   },
   signUpButton: {
     backgroundColor: "#1DB954",
-    paddingVertical: 15,
-    paddingHorizontal: 35,
-    borderRadius: 30,
-    marginTop: 20,
-    width: "100%",
+    height: 56,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  buttonDisabled: {
+    backgroundColor: "rgba(29, 185, 84, 0.6)",
   },
   signUpButtonText: {
     color: "#ffffff",
     fontSize: 18,
     fontWeight: "bold",
-    textAlign: "center",
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   loginContainer: {
     flexDirection: "row",
-    marginTop: 20,
+    justifyContent: "center",
+    marginTop: 24,
   },
   loginText: {
-    color: "#888",
+    color: "#888888",
+    fontSize: 15,
   },
   loginLink: {
     color: "#1DB954",
     fontWeight: "bold",
+    fontSize: 15,
   },
   loadingContainer: {
     flex: 1,
@@ -284,22 +584,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#121212",
   },
-  errorText: {
-    color: "#ff4d4d",
-    fontSize: 14,
-    marginBottom: 11,
+  loadingText: {
+    color: "#FFFFFF",
+    marginTop: 12,
+    fontSize: 16,
   },
-  mediumPassword: {
-    color: "#fff04d",
-    fontSize: 14,
-    marginBottom: 11,
-    fontWeight: "bold",
+  passwordTipsContainer: {
+    marginTop: 32,
+    padding: 16,
+    backgroundColor: "#1E1E1E",
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#1DB954",
   },
-  strongPassword: {
-    color: "#1DB954",
+  passwordTipsTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
     fontWeight: "bold",
+    marginBottom: 12,
+  },
+  passwordTip: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  tipIcon: {
+    marginRight: 8,
+  },
+  tipText: {
+    color: "#BBBBBB",
     fontSize: 14,
-    marginBottom: 11,
   },
 });
 

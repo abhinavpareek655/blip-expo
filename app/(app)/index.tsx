@@ -10,10 +10,10 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import { JsonRpcProvider, Contract, Signer } from 'ethers';
+import { JsonRpcProvider, Contract, Signer, Wallet } from 'ethers';
 import BlipProfileABI from '../../blockchain/BlipProfile.json';
 import Post from '../(post)/Post';
-import { getProfile, isFriend } from '@/blockchain/profileContract';
+import { getProfile, isFriend, initProfileContract  } from '@/blockchain/profileContract';
 
 const PROFILE_CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_PROFILE_CONTRACT!;
 const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
@@ -28,37 +28,57 @@ export const initContract = async () => {
 };
 
 export const getAdminPosts = async () => {
-  if (!profileContract) await initContract();
-  
-  // Use the stored signer to get the current user's address.
+  if (!profileContract) {
+    await initContract();
+  }
+
+  // assume you have a signer stored somewhere; fetch its address
   const currentUserAddress = await currentSigner.getAddress();
+
+  // fetch admin posts on‑chain
   const result = await profileContract.getAdminPosts();
 
   const posts = await Promise.all(
     result.map(async (p: any, idx: number) => {
       const ownerAddress = p.owner;
-      let profileData = { name: ownerAddress.slice(0, 6), email: "user@example.com" };
 
+      // 1) pull profile data directly from this same profileContract :contentReference[oaicite:2]{index=2}&#8203;:contentReference[oaicite:3]{index=3}
+      let name  = ownerAddress.slice(0, 6);
+      let email = 'user@example.com';
       try {
-        profileData = await getProfile(ownerAddress);
-      } catch (error) {
-        console.error("Error fetching profile for", ownerAddress, error);
+        const raw = await profileContract.getProfile(ownerAddress);
+        name  = raw[0];
+        email = raw[1];
+      } catch (err) {
+        console.error('Error fetching profile for', ownerAddress, err);
+      }
+
+      // 2) check friendship using the same contract :contentReference[oaicite:4]{index=4}&#8203;:contentReference[oaicite:5]{index=5}
+      let friend = false;
+      try {
+        friend = await profileContract.isFriend(ownerAddress, currentUserAddress);
+      } catch (err) {
+        console.error(
+          'Error checking friendship for',
+          ownerAddress,
+          currentUserAddress,
+          err
+        );
       }
 
       return {
-        id: p.id?.toString() ?? idx.toString(),
-        // Pass the owner as an object with address and isFriend
+        id:        p.id?.toString() ?? idx.toString(),
         owner: {
-          address: ownerAddress,
-          isFriend: await isFriend(ownerAddress, currentUserAddress),
+          address:  ownerAddress,
+          isFriend: friend,
         },
-        text: p.text,
+        text:      p.text,
         timestamp: Number(p.timestamp),
-        isPublic: p.isPublic,
-        name: profileData.name,
-        email: profileData.email,
-        likes: p.likes,
-        comments: p.comments,
+        isPublic:  p.isPublic,
+        name,
+        email,
+        likes:     Number(p.likes),
+        comments:  Number(p.comments),
       };
     })
   );

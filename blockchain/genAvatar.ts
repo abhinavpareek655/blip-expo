@@ -27,9 +27,9 @@ function getFeatureFromAddressSection(
   const value = parseInt(substring, 16) || 0;
   const index = value % options.length;
   const selectedOption = options[index];
-  console.log(
-    `[DEBUG] Feature selection from address[${start}:${start + length}] ('${substring}') => ${selectedOption}`
-  );
+  // console.log(
+  //   `[DEBUG] Feature selection from address[${start}:${start + length}] ('${substring}') => ${selectedOption}`
+  // );
   return selectedOption;
 }
 
@@ -43,7 +43,7 @@ export function generateAvatarUrl(walletAddress: string): string {
   const address = walletAddress.startsWith("0x")
     ? walletAddress.slice(2)
     : walletAddress;
-  console.log("[DEBUG] Wallet address without prefix:", address);
+  // console.log("[DEBUG] Wallet address without prefix:", address);
 
   // Use fixed length segments from the address to pick features.
   // Adjust the segments if your address is too short, using defaults if necessary.
@@ -75,10 +75,10 @@ export function generateAvatarUrl(walletAddress: string): string {
   // Note: DiceBear's API officially supports "seed". The other parameters below are used as an example;
   // you might need to adjust them according to your custom avatar generation backend.
   const queryParams = `seed=${seed}&accessories=${accessories}&eyes=${eyes}&hair=${hair}&hairColor=${hairColor}&mouth=${mouth}&skinColor=${skinColor}&backgroundColor=b6e3f4`;
-  console.log("[DEBUG] Query Params:", queryParams);
+  // console.log("[DEBUG] Query Params:", queryParams);
 
   // Construct the final URL:
   const url = `https://api.dicebear.com/9.x/${style}/png?${queryParams}`;
-  console.log("[DEBUG] Generated Avatar URL:", url);
+  // console.log("[DEBUG] Generated Avatar URL:", url);
   return url;
 }
