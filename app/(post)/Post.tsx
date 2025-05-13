@@ -14,7 +14,7 @@ import { generateAvatarUrl } from '../../blockchain/genAvatar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { JsonRpcProvider, Wallet } from 'ethers';
 import { initPostContract, likePost } from '../../blockchain/postContract';
-import { addFriend } from '../../blockchain/profileContract';
+import { sendFriendRequest } from '../../blockchain/profileContract';
 import { ethers } from 'ethers';
 
 interface PostOwner {
@@ -42,7 +42,7 @@ interface PostProps {
 export default function Post({ post, onAddFriend, onComment }: PostProps) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes);
-  const [friendAdded, setFriendAdded] = useState(post.owner.isFriend);
+  const [requestSent, setRequestSent] = useState(post.owner.isFriend);
   const [isLoading, setIsLoading] = useState(false);
   const likeAnimation = useRef(new Animated.Value(1)).current;
   const friendAnimation = useRef(new Animated.Value(1)).current;
@@ -141,23 +141,24 @@ export default function Post({ post, onAddFriend, onComment }: PostProps) {
     }
   };
 
-  const handleAddFriend = async () => {
-    if (friendAdded || isLoading) return;
-    
+  const handleSendFriendRequest = async () => {
+    if (requestSent || isLoading) return;
+
     animateFriend();
     setIsLoading(true);
-    
+
     try {
-      await addFriend(post.owner.address);
-      setFriendAdded(true);
+      await sendFriendRequest(post.owner.address);
+      setRequestSent(true);
       if (onAddFriend) onAddFriend(post.owner.address);
     } catch (error) {
-      console.error("Error adding friend:", error);
-      Alert.alert("Error", "Failed to add friend. Please try again.");
+      console.error("Error sending friend request:", error);
+      Alert.alert("Error", "Failed to send friend request. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
+
 
   return (
     <View style={styles.postContainer}>
@@ -217,20 +218,20 @@ export default function Post({ post, onAddFriend, onComment }: PostProps) {
         </TouchableOpacity>
 
         <TouchableOpacity 
-          onPress={handleAddFriend} 
+          onPress={handleSendFriendRequest} 
           style={styles.actionButton}
-          disabled={friendAdded || isLoading}
+          disabled={requestSent || isLoading}
           activeOpacity={0.7}
         >
           <Animated.View style={{ transform: [{ scale: friendAnimation }] }}>
-            {friendAdded ? (
+            {requestSent ? (
               <Ionicons name="person-add" size={20} color="#1DB954" />
             ) : (
               <Ionicons name="person-add-outline" size={20} color="#BBBBBB" />
             )}
           </Animated.View>
-          <Text style={[styles.actionText, friendAdded && styles.friendAddedText]}>
-            {friendAdded ? 'Friend' : ''}
+          <Text style={[styles.actionText, requestSent && styles.friendAddedText]}>
+            {requestSent ? 'Requested' : ''}
           </Text>
         </TouchableOpacity>
         

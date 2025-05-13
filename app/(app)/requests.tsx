@@ -19,9 +19,10 @@ import { useRouter } from "expo-router";
 import { generateAvatarUrl } from "../../blockchain/genAvatar";
 import { 
   initProfileContract, 
-  getFriendRequests, 
+  listFriendRequests, 
   acceptFriendRequest, 
-  rejectFriendRequest 
+  rejectFriendRequest,
+  getProfile,
 } from "../../blockchain/profileContract";
 
 // Define the interface for a friend request
@@ -65,19 +66,24 @@ const FriendRequestsScreen = () => {
       await initProfileContract(userWallet);
       
       // Fetch friend requests from the blockchain
-      const requests = await getFriendRequests();
+      const requests: string[] = await listFriendRequests();
       
       // Format the requests for display
-      const formattedRequests: FriendRequest[] = requests.map((request: any, index: number) => ({
-        id: request.id?.toString() || index.toString(),
-        address: request.address,
-        name: request.name || "Unknown User",
-        email: request.email || "No email",
-        timestamp: request.timestamp || Date.now() / 1000,
-        status: "pending"
-      }));
-      
-      setFriendRequests(formattedRequests);
+      const formatted: FriendRequest[] = await Promise.all(
+      requests.map(async (addr, i) => {
+        const { name, email } = await getProfile(addr);
+        return {
+          id: String(i),
+          address: addr,
+          name,
+          email,
+          timestamp: Date.now() / 1000,
+          status: "pending"
+        };
+      })
+    );
+    setFriendRequests(formatted);
+
       
       // Animate the content in
       Animated.timing(fadeAnim, {
