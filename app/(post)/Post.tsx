@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { JsonRpcProvider, Wallet } from 'ethers';
 import { initPostContract, likePost } from '../../blockchain/postContract';
 import { addFriend } from '../../blockchain/profileContract';
+import { ethers } from 'ethers';
 
 interface PostOwner {
   address: string;
@@ -78,37 +79,59 @@ export default function Post({ post, onAddFriend, onComment }: PostProps) {
     ]).start();
   };
 
-  const handleLike = async () => {
-    if (liked || isLoading) return;
-    
-    animateLike();
-    setIsLoading(true);
-    
-    try {
-      const storedPrivateKey = await AsyncStorage.getItem('walletPrivateKey');
-      if (!storedPrivateKey) throw new Error("Wallet not found");
+ const handleLike = async () => {
+  if (liked || isLoading) return;
   
-      const provider = new JsonRpcProvider(process.env.EXPO_PUBLIC_RPC_URL);
-      const userWallet = new Wallet(storedPrivateKey).connect(provider);
+  animateLike();
+  setIsLoading(true);
   
-      await initPostContract(userWallet);
-  
-      const numericPostId = parseInt(post.id, 10);
-      if (isNaN(numericPostId)) {
-        console.error("Invalid post ID:", post.id);
-        throw new Error("Invalid post ID");
-      }
-  
-      await likePost(numericPostId);
-      setLiked(true);
-      setLikeCount(likeCount + 1);
-    } catch (error) {
-      console.error("Error liking post:", error);
-      Alert.alert("Error", "Failed to like post. Please try again.");
-    } finally {
-      setIsLoading(false);
+  try {
+    const storedPrivateKey = await AsyncStorage.getItem('walletPrivateKey');
+    if (!storedPrivateKey) throw new Error("Wallet not found");
+
+    const provider = new ethers.JsonRpcProvider(process.env.EXPO_PUBLIC_RPC_URL);
+    const userWallet = new ethers.Wallet(storedPrivateKey, provider);
+
+    // Convert post ID safely
+    const numericPostId = Number(post.id);
+    console.log("Post ID:", numericPostId);
+    if (numericPostId < 0) {
+      throw new Error("Invalid post ID");
     }
-  };
+
+    await initPostContract(userWallet);
+    
+    // Get the transaction response
+
+    const tx = await likePost(numericPostId);
+    console.log("Transaction hash:", tx.hash);
+
+    // Wait for confirmation
+    const receipt = await tx.wait();
+    if (!receipt || receipt.status !== 1) throw new Error("Transaction failed");
+
+    setLiked(true);
+    setLikeCount(prev => prev + 1);
+
+  } catch (error) {
+    console.error("Like error:", error);
+    
+    let errorMessage = "Failed to like post";
+    if (error instanceof Error) {
+      if (error.message.includes("Invalid post ID")) {
+        errorMessage = "Invalid post";
+      } else if (error.message.includes("Already liked")) {
+        errorMessage = "You already liked this post";
+      } else if (error.message.includes("rejected")) {
+        errorMessage = "Transaction rejected";
+      }
+    }
+
+    Alert.alert("Error", errorMessage);
+  } finally {
+    setIsLoading(false);
+  }
+};
   
   const handleComment = () => {
     if (onComment) {

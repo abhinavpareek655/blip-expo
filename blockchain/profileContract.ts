@@ -130,3 +130,26 @@ export const getFriendsWithProfiles = async (wallet: string) => {
   const friends = await getFriends(wallet);
   return Promise.all(friends.map(getProfile));
 };
+
+export const sendFriendRequest = async (friendAddress: string): Promise<void> => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  const tx = await profileContract.sendFriendRequest(friendAddress);
+  await tx.wait();
+}
+
+export const acceptFriendRequest = async (friendAddress: string): Promise<void> => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  const tx = await profileContract.acceptFriendRequest(friendAddress);
+  await tx.wait();
+}
+
+export const getFriendRequests = async () => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  return profileContract.getFriendRequests();
+}
+
+export const rejectFriendRequest = async (friendAddress: string): Promise<void> => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  const tx = await profileContract.rejectFriendRequest(friendAddress);
+  await tx.wait();
+}

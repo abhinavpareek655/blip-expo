@@ -1,4 +1,4 @@
-import { Contract, Signer } from "ethers";
+import { Contract, Signer, ethers } from "ethers";
 import BlipPostsABI from "./BlipPosts.json";
 
 const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_POST_CONTRACT!;
@@ -33,11 +33,10 @@ export const createPost = async (text: string, isPublic: boolean) => {
  *
  * @param postId - The ID of the post to like.
  */
-export const likePost = async (postId: number) => {
+export const likePost = async (postId: number): Promise<ethers.ContractTransactionResponse> => {
   if (!postContract) throw new Error("Post contract not initialized");
-  const tx = await postContract.likePost(postId);
-  await tx.wait();
   console.log(`[LIKE POST] Post ${postId} liked`);
+  return postContract.likePost(postId);
 };
 
 /**
