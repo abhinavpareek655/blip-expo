@@ -1,6 +1,6 @@
 // blockchain/profileContract.ts
 
-import { Contract, Signer } from "ethers";
+import { Contract, id, Signer } from "ethers";
 import BlipProfileABI from "./BlipProfile.json";
 
 const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_PROFILE_CONTRACT!;

@@ -16,11 +16,16 @@ import {
 import { JsonRpcProvider, Contract, Signer, Wallet } from 'ethers';
 import BlipProfileABI from '../../blockchain/BlipProfile.json';
 import Post from '../(post)/Post';
-import { getProfile, isFriend, initProfileContract } from '@/blockchain/profileContract';
+import { getProfile, isFriend, initProfileContract, getFriends} from '@/blockchain/profileContract';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { keccak256, toUtf8Bytes } from "ethers";
+import BlipAuthABI from "../../blockchain/BlipAuth.json";
+
 
 const PROFILE_CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_PROFILE_CONTRACT!;
+const AUTH_CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_AUTH_CONTRACT!;
 const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
 
 let profileContract: Contract;
@@ -31,6 +36,63 @@ export const initContract = async () => {
   currentSigner = await provider.getSigner();
   profileContract = new Contract(PROFILE_CONTRACT_ADDRESS, BlipProfileABI.abi, currentSigner);
 };
+
+export const getPosts = async (wallet: string) => {
+  if (!profileContract) {
+    await initContract();
+  }
+
+  const currentUserAddress = await currentSigner.getAddress();
+  const result = await profileContract.getPosts(wallet);
+
+  const posts = await Promise.all(
+    result.map(async (p: any, idx: number) => {
+      const ownerAddress = p.owner;
+
+      // 1) Fetch profile details
+      let name = ownerAddress.slice(0, 6);
+      let email = 'user@example.com';
+      try {
+        const raw = await profileContract.getProfile(ownerAddress);
+        name = raw[0];
+        email = raw[1];
+      } catch (err) {
+        console.error('Error fetching profile for', ownerAddress, err);
+      }
+
+      // 2) Check friendship status
+      let friend = false;
+      try {
+        friend = await profileContract.isFriend(ownerAddress, currentUserAddress);
+      } catch (err) {
+        console.error(
+          'Error checking friendship for',
+          ownerAddress,
+          currentUserAddress,
+          err
+        );
+      }
+
+      return {
+        id: p.id?.toString() ?? idx.toString(),
+        owner: {
+          address: ownerAddress,
+          isFriend: friend,
+        },
+        text: p.text ?? "",
+        timestamp: Number(p.timestamp ?? 0),
+        isPublic: p.isPublic ?? true,
+        name,
+        email,
+        likes: Number(p.likes ?? 0),
+        comments: Number(p.comments ?? 0),
+      };
+    })
+  );
+
+  return posts.sort((a, b) => b.timestamp - a.timestamp);
+};
+
 
 export const getAdminPosts = async () => {
   if (!profileContract) {
@@ -100,23 +162,62 @@ export default function HomeScreen() {
   const router = useRouter();
 
   const fetchPosts = async () => {
-    try {
+  try {
+    setRefreshing(true);
+
+    // 1) Recover on‑chain wallet from email
+    const email = await AsyncStorage.getItem("userToken");
+    if (!email) throw new Error("Email not found");
+    const provider = new JsonRpcProvider(PROVIDER_URL);
+    const authContract = new Contract(
+      AUTH_CONTRACT_ADDRESS,
+      BlipAuthABI.abi,
+      provider
+    );
+    const emailHash = keccak256(toUtf8Bytes(email.trim().toLowerCase()));
+    const onChainWallet: string = await authContract.getUserByEmailHash(emailHash);
+    if (!onChainWallet) {
+      throw new Error("No wallet found for this email");
+    }
+
+    // 2) Reconstruct signer and init profileContract
+    const storedPK = await AsyncStorage.getItem("walletPrivateKey");
+    if (!storedPK) throw new Error("Wallet private key not found");
+    const userWallet = new Wallet(storedPK, provider);
+    if (userWallet.address.toLowerCase() !== onChainWallet.toLowerCase()) {
+      throw new Error("Wallet mismatch");
+    }
+    await initProfileContract(userWallet);
+
+    // 3) Dispatch by tab
+    if (activeTab === 'public') {
       console.log("[HOME] Fetching admin public posts...");
       setRefreshing(true);
       const publicPosts = await getAdminPosts();
       console.log("[HOME] Posts fetched:", publicPosts);
       setPosts(publicPosts);
-    } catch (error) {
-      console.error("❌ [HOME] Error loading public posts:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    } else {
+      const friendAddresses = await getFriends(userWallet.address);
+
+      const allFriendPostsArrays = await Promise.all(
+        friendAddresses.map((addr: string) => getPosts(addr))
+      );
+
+      const allFriendPosts = allFriendPostsArrays.flat();
+      allFriendPosts.sort((a, b) => b.timestamp - a.timestamp);
+      setPosts(allFriendPosts);
     }
-  };
+  } catch (error) {
+    console.error("❌ [HOME] Error loading posts:", error);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   useEffect(() => {
     fetchPosts();
-  }, []);
+  }, [activeTab]);
 
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 50],
