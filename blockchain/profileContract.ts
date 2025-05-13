@@ -153,3 +153,8 @@ export const rejectFriendRequest = async (friendAddress: string): Promise<void> 
   const tx = await profileContract.rejectFriendRequest(friendAddress);
   await tx.wait();
 }
+
+export const listSentRequests = async (wallet: string): Promise<string[]> => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  return profileContract.listSentRequests(wallet);
+};

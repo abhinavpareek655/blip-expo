@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import { JsonRpcProvider, Wallet } from "ethers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getProfileByEmail, initProfileContract, addFriend } from "../../blockchain/profileContract";
+import { getProfileByEmail, initProfileContract, sendFriendRequest } from "../../blockchain/profileContract";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { generateAvatarUrl } from "../../blockchain/genAvatar";
@@ -142,7 +142,7 @@ const SearchScreen = () => {
     }
   };
   
-  const sendFriendRequest = async () => {
+  const handleSendFriendRequest = async () => {
     if (!user || !user.wallet) {
       Alert.alert("Error", "User information is missing");
       return;
@@ -167,7 +167,7 @@ const SearchScreen = () => {
       await initProfileContract(userWallet);
       
       // Send friend request
-      await addFriend(user.wallet);
+      await sendFriendRequest(user.wallet);
       
       setFriendRequestSent(true);
       Alert.alert("Success", `Friend request sent to ${user.name || 'user'}`);
@@ -395,7 +395,7 @@ const SearchScreen = () => {
                   friendRequestSent && styles.friendRequestSentButton,
                   sendingRequest && styles.friendRequestLoadingButton
                 ]}
-                onPress={sendFriendRequest}
+                onPress={handleSendFriendRequest}
                 disabled={friendRequestSent || sendingRequest}
               >
                 {sendingRequest ? (

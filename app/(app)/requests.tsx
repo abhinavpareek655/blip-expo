@@ -23,6 +23,7 @@ import {
   acceptFriendRequest, 
   rejectFriendRequest,
   getProfile,
+  listSentRequests,
 } from "../../blockchain/profileContract";
 
 // Define the interface for a friend request
@@ -64,9 +65,19 @@ const FriendRequestsScreen = () => {
       
       // Initialize the profile contract using the reconstructed wallet
       await initProfileContract(userWallet);
+
+      const walletAddress = await userWallet.getAddress();
       
-      // Fetch friend requests from the blockchain
-      const requests: string[] = await listFriendRequests();
+      let requests: string[] = [];
+
+      // Determine whether to fetch received or sent friend requests based on the active tab
+      if (activeTab === "received") {
+        // Fetch received requests
+        requests = await listFriendRequests();
+      } else if (activeTab === "sent") {
+        // Fetch sent requests
+        requests = await listSentRequests(walletAddress);
+      }
       
       // Format the requests for display
       const formatted: FriendRequest[] = await Promise.all(
@@ -216,10 +227,53 @@ const FriendRequestsScreen = () => {
     }
   };
 
+  // const handleCancelRequest = async (request: FriendRequest) => {
+  //   try {
+  //     setProcessingIds(prev => [...prev, request.id]);
+  //     setFriendRequests(prev =>
+  //       prev.map(r =>
+  //         r.id === request.id ? { ...r, status: "processing" } : r
+  //       )
+  //     );
+
+  //     // reconstruct wallet & contract just like in fetchFriendRequests...
+  //     const storedPK = await AsyncStorage.getItem("walletPrivateKey");
+  //     if (!storedPK) throw new Error("Wallet not found");
+  //     const provider = new JsonRpcProvider(process.env.EXPO_PUBLIC_RPC_URL);
+  //     const userWallet = new Wallet(storedPK).connect(provider);
+  //     await initProfileContract(userWallet);
+
+  //     // **Here**: cancel the outgoing request you sent to `request.address`
+  //     await rejectFriendRequest(request.address);
+
+  //     // update locally to show it’s cancelled
+  //     setFriendRequests(prev =>
+  //       prev.map(r =>
+  //         r.id === request.id ? { ...r, status: "cancelled" } : r
+  //       )
+  //     );
+  //     setTimeout(() => {
+  //       setFriendRequests(prev => prev.filter(r => r.id !== request.id));
+  //     }, 1500);
+  //   } catch (err) {
+  //     console.error("Error cancelling request:", err);
+  //     Alert.alert("Error", "Failed to cancel request. Please try again.");
+  //     setFriendRequests(prev =>
+  //       prev.map(r =>
+  //         r.id === request.id ? { ...r, status: "sent" } : r
+  //       )
+  //     );
+  //   } finally {
+  //     setProcessingIds(prev => prev.filter(id => id !== request.id));
+  //   }
+  // };
+  
+
   // Load friend requests on component mount
+  
   useEffect(() => {
     fetchFriendRequests();
-  }, []);
+  }, [activeTab]);
 
   // Render a friend request item
   const renderRequestItem = ({ item }: { item: FriendRequest }) => {
@@ -262,49 +316,73 @@ const FriendRequestsScreen = () => {
         </View>
         
         <View style={styles.requestActions}>
-          {isAccepted ? (
+          {activeTab === "received" ? (
+            // RECEIVED tab: show Accept / Reject
+            isAccepted ? (
+              <View style={styles.statusContainer}>
+                <Ionicons name="checkmark-circle" size={20} color="#1DB954" />
+                <Text style={styles.acceptedText}>Friend Request Accepted</Text>
+              </View>
+            ) : isRejected ? (
+              <View style={styles.statusContainer}>
+                <Ionicons name="close-circle" size={20} color="#E74C3C" />
+                <Text style={styles.rejectedText}>Friend Request Rejected</Text>
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.rejectButton, isProcessing && styles.disabledButton]}
+                  onPress={() => handleRejectRequest(item)}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="close" size={18} color="#FFFFFF" style={styles.actionIcon} />
+                      <Text style={styles.actionButtonText}>Reject</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.acceptButton, isProcessing && styles.disabledButton]}
+                  onPress={() => handleAcceptRequest(item)}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark" size={18} color="#FFFFFF" style={styles.actionIcon} />
+                      <Text style={styles.actionButtonText}>Accept</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )
+          ) : activeTab === "sent" ? (
+            
+            // SENT tab: show a single "Cancel Request" button
+            // <TouchableOpacity
+            //   style={[styles.rejectButton, isProcessing && styles.disabledButton]}
+            //   onPress={() => handleCancelRequest(item)}
+            //   disabled={isProcessing}
+            // >
+            //   {isProcessing ? (
+            //     <ActivityIndicator size="small" color="#FFFFFF" />
+            //   ) : (
+            //     <>
+            //       <Ionicons name="close" size={18} color="#FFFFFF" style={styles.actionIcon} />
+            //       <Text style={styles.actionButtonText}>Cancel Request</Text>
+            //     </>
+            //   )}
+            // </TouchableOpacity>
+
             <View style={styles.statusContainer}>
               <Ionicons name="checkmark-circle" size={20} color="#1DB954" />
-              <Text style={styles.acceptedText}>Friend Request Accepted</Text>
+              <Text style={styles.acceptedText}>Request Sent</Text>
             </View>
-          ) : isRejected ? (
-            <View style={styles.statusContainer}>
-              <Ionicons name="close-circle" size={20} color="#E74C3C" />
-              <Text style={styles.rejectedText}>Friend Request Rejected</Text>
-            </View>
-          ) : (
-            <>
-              <TouchableOpacity 
-                style={[styles.rejectButton, isProcessing && styles.disabledButton]}
-                onPress={() => handleRejectRequest(item)}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="close" size={18} color="#FFFFFF" style={styles.actionIcon} />
-                    <Text style={styles.actionButtonText}>Reject</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.acceptButton, isProcessing && styles.disabledButton]}
-                onPress={() => handleAcceptRequest(item)}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark" size={18} color="#FFFFFF" style={styles.actionIcon} />
-                    <Text style={styles.actionButtonText}>Accept</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
+          ) : null}
         </View>
       </View>
     );
