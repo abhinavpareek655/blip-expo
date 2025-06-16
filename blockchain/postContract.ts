@@ -1,4 +1,4 @@
-import { Contract, Wallet } from "ethers";
+import { Contract, Signer, ethers } from "ethers";
 import BlipPostsABI from "./BlipPosts.json";
 
 const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_POST_CONTRACT!;
@@ -10,8 +10,8 @@ let postContract: Contract;
  *
  * @param wallet - The user’s Wallet which was used to create their profile.
  */
-export const initPostContract = async (wallet: Wallet) => {
-  postContract = new Contract(CONTRACT_ADDRESS, BlipPostsABI.abi, wallet);
+export const initPostContract = async (signer: Signer) => {
+  postContract = new Contract(CONTRACT_ADDRESS, BlipPostsABI.abi, signer);
 };
 
 /**
@@ -24,8 +24,8 @@ export const createPost = async (text: string, isPublic: boolean) => {
   if (!postContract) throw new Error("Post contract not initialized");
   const tx = await postContract.createPost(text, isPublic);
   console.log("[CREATE POST] Tx sent:", tx.hash);
-  await tx.wait();
-  console.log("[CREATE POST] Post created");
+  return tx.wait();
+  // console.log("[CREATE POST] Post created");
 };
 
 /**
@@ -33,11 +33,10 @@ export const createPost = async (text: string, isPublic: boolean) => {
  *
  * @param postId - The ID of the post to like.
  */
-export const likePost = async (postId: number) => {
+export const likePost = async (postId: number): Promise<ethers.ContractTransactionResponse> => {
   if (!postContract) throw new Error("Post contract not initialized");
-  const tx = await postContract.likePost(postId);
-  await tx.wait();
   console.log(`[LIKE POST] Post ${postId} liked`);
+  return postContract.likePost(postId);
 };
 
 /**

@@ -89,6 +89,20 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <AntDesign name="plus" size={24} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="logout"
+        options={{
+          title: 'Logout',
+          tabBarIcon: ({ color }) => <AntDesign name="logout" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="requests"
+        options={{
+          title: 'Requests',
+          tabBarIcon: ({ color }) => <AntDesign name="addusergroup" size={24} color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

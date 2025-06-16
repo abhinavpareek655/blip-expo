@@ -1,45 +1,55 @@
-import { Contract, Wallet } from "ethers";
+// blockchain/profileContract.ts
+
+import { Contract, id, Signer } from "ethers";
 import BlipProfileABI from "./BlipProfile.json";
 
 const CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_PROFILE_CONTRACT!;
-
 let profileContract: Contract;
 
 /**
- * Initializes the profile contract instance using the supplied user wallet.
- * @param wallet - The user’s Wallet used to sign on-chain transactions.
+ * Initializes the profile contract instance using the supplied signer.
+ * Must be called before any of the other helpers.
  */
-export const initProfileContract = async (wallet: Wallet) => {
-  if (!wallet) {
-    throw new Error("A funded wallet is required to initialize the Profile contract");
+export function initProfileContract(signer: Signer): void {
+  if (!signer) {
+    throw new Error(
+      "A funded wallet signer is required to initialize the Profile contract"
+    );
   }
-  profileContract = new Contract(CONTRACT_ADDRESS, BlipProfileABI.abi, wallet);
-};
+  profileContract = new Contract(
+    CONTRACT_ADDRESS,
+    BlipProfileABI.abi,
+    signer
+  );
+}
 
 export const createProfile = async (
   name: string,
   email: string,
   bio: string
-) => {
+): Promise<void> => {
   if (!profileContract) throw new Error("Profile contract not initialized");
   const tx = await profileContract.createProfile(name, email, bio);
   console.log(`[CREATE PROFILE] Tx sent: ${tx.hash}`);
   await tx.wait();
 };
 
-export const updateBio = async (newBio: string) => {
+export const updateBio = async (newBio: string): Promise<void> => {
   if (!profileContract) throw new Error("Profile contract not initialized");
   const tx = await profileContract.updateBio(newBio);
   await tx.wait();
 };
 
-export const updateName = async (newName: string) => {
+export const updateName = async (newName: string): Promise<void> => {
   if (!profileContract) throw new Error("Profile contract not initialized");
   const tx = await profileContract.updateName(newName);
   await tx.wait();
 };
 
-export const updateProfileOnChain = async (name: string, bio: string) => {
+export const updateProfileOnChain = async (
+  name: string,
+  bio: string
+): Promise<void> => {
   if (!profileContract) throw new Error("Profile contract not initialized");
   const tx1 = await profileContract.updateBio(bio);
   await tx1.wait();
@@ -47,24 +57,30 @@ export const updateProfileOnChain = async (name: string, bio: string) => {
   await tx2.wait();
 };
 
-export const addFriend = async (friendAddress: string) => {
+export const addFriend = async (friendAddress: string): Promise<void> => {
   if (!profileContract) throw new Error("Profile contract not initialized");
   const tx = await profileContract.addFriend(friendAddress);
   await tx.wait();
 };
 
-export const removeFriend = async (friendAddress: string) => {
+export const removeFriend = async (friendAddress: string): Promise<void> => {
   if (!profileContract) throw new Error("Profile contract not initialized");
   const tx = await profileContract.removeFriend(friendAddress);
   await tx.wait();
 };
 
-export const isFriend = async (user1: string, user2: string): Promise<boolean> => {
+export const isFriend = async (
+  user1: string,
+  user2: string
+): Promise<boolean> => {
   if (!profileContract) throw new Error("Profile contract not initialized");
-  return await profileContract.isFriend(user1, user2);
+  return profileContract.isFriend(user1, user2);
 };
 
-export const addTextPost = async (text: string, isPublic: boolean) => {
+export const addTextPost = async (
+  text: string,
+  isPublic: boolean
+): Promise<void> => {
   if (!profileContract) throw new Error("Profile contract not initialized");
   const tx = await profileContract.addPost(text, isPublic);
   console.log(`[ADD POST] Tx sent: ${tx.hash}`);
@@ -107,11 +123,38 @@ export const getProfileByEmail = async (email: string) => {
 
 export const getFriends = async (wallet: string) => {
   if (!profileContract) throw new Error("Profile contract not initialized");
-  return await profileContract.getFriends(wallet);
+  return profileContract.getFriends(wallet);
 };
 
 export const getFriendsWithProfiles = async (wallet: string) => {
   const friends = await getFriends(wallet);
-  const profiles = await Promise.all(friends.map(getProfile));
-  return profiles;
+  return Promise.all(friends.map(getProfile));
+};
+
+export const sendFriendRequest = async (friendAddress: string): Promise<void> => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  const tx = await profileContract.sendFriendRequest(friendAddress);
+  await tx.wait();
+}
+
+export const acceptFriendRequest = async (friendAddress: string): Promise<void> => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  const tx = await profileContract.acceptFriendRequest(friendAddress);
+  await tx.wait();
+}
+
+export const listFriendRequests = async (): Promise<string[]> => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  return profileContract.listFriendRequests();
+};
+
+export const rejectFriendRequest = async (friendAddress: string): Promise<void> => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  const tx = await profileContract.rejectFriendRequest(friendAddress);
+  await tx.wait();
+}
+
+export const listSentRequests = async (wallet: string): Promise<string[]> => {
+  if (!profileContract) throw new Error("Profile contract not initialized");
+  return profileContract.listSentRequests(wallet);
 };

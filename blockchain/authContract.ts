@@ -28,6 +28,7 @@ export const createUserWallet = (): Wallet => {
   console.log("[WALLET] New wallet created:", wallet.address);
   return wallet;
 };
+
 /**
  * Write function: Sign up user using the provided wallet.
  */
@@ -46,12 +47,11 @@ export const signupOnChain = async (wallet: Wallet, email: string, password: str
  * Write function: Create user profile using the provided wallet.
  */
 export const createProfileOnChain = async (
-  wallet: Wallet, 
-  name: string, 
-  email: string, 
+  wallet: Wallet,
+  name: string,
+  email: string,
   bio: string
 ) => {
-  // Use the profile contract's ABI and address here:
   const walletSignerContract = new Contract(PROFILE_CONTRACT_ADDRESS, ProfileABI.abi, wallet);
   const normalizedEmail = email.trim().toLowerCase();
   console.log("[PROFILE] Creating profile for:", normalizedEmail);
@@ -63,16 +63,25 @@ export const createProfileOnChain = async (
 };
 
 /**
- * Read-only function: Log in (reads from chain).
+ * Signer-based login function.
+ * Verifies user credentials using msg.sender from the provided wallet.
  */
-export const loginOnChain = async (email: string, password: string): Promise<boolean> => {
-  if (!readOnlyContract) throw new Error("Read-only contract not initialized");
+export const loginOnChain = async (
+  email: string,
+  password: string,
+  wallet: Wallet
+): Promise<boolean> => {
+  if (!wallet || !wallet.provider) {
+    throw new Error("Signer wallet not connected to provider");
+  }
 
+  const signerContract = new Contract(CONTRACT_ADDRESS, AuthABI.abi, wallet);
   const normalizedEmail = email.trim().toLowerCase();
+
   console.log("[LOGIN] Verifying credentials for:", normalizedEmail);
 
   try {
-    const isValid = await readOnlyContract.login(normalizedEmail, password.trim());
+    const isValid = await signerContract.login(normalizedEmail, password.trim());
     console.log("[LOGIN] Result:", isValid);
     return isValid;
   } catch (err) {
@@ -87,6 +96,7 @@ export const loginOnChain = async (email: string, password: string): Promise<boo
 export const getWalletFromEmail = async (email: string): Promise<string> => {
   if (!readOnlyContract) throw new Error("Contract not initialized");
 
-  const emailHash = keccak256(toUtf8Bytes(email.trim().toLowerCase()));
+  const normalizedEmail = email.trim().toLowerCase();
+  const emailHash = keccak256(toUtf8Bytes(normalizedEmail));
   return await readOnlyContract.getUserByEmailHash(emailHash);
 };
