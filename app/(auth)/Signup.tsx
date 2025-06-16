@@ -21,6 +21,19 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { initContract } from "../../blockchain/authContract";
 
+const sanitize = (input: string): string => {
+  let s = input;
+
+  // a) Remove any HTML tags
+  s = s.replace(/<[^>]*>/g, '');
+
+  // b) Remove common SQL injection patterns
+  s = s.replace(/\b(select|insert|update|delete|drop|alter|create|truncate)\b/gi, '');
+  s = s.replace(/(--|;|'|"|\/\*|\*\/|xp_)/g, '');
+  
+  return s.trim();
+};
+
 const SignupScreen = () => {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -31,6 +44,25 @@ const SignupScreen = () => {
   const [error, setError] = useState<string | null>(null);
   const [shakeAnimation] = useState(new Animated.Value(0));
   const [passwordFocused, setPasswordFocused] = useState(false);
+
+  const handleEmailChange = (text: string) => {
+    const clean = sanitize(text);
+    setEmail(clean);
+    if (error === "no email" || error === "invalid email") setError(null);
+  };
+
+  const handlePasswordChange = (text: string) => {
+    const clean = sanitize(text);
+    setPassword(clean);
+    if (error === "no password" || error === "password must be at least 8 characters" || error === "weak password") 
+      setError(null);
+  };
+
+  const handleConfirmPasswordChange = (text: string) => {
+    const clean = sanitize(text);
+    setConfirmPassword(clean);
+    if (error === "no confirm password" || error === "passwords do not match") setError(null);
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -233,10 +265,7 @@ const SignupScreen = () => {
                     placeholder="Enter your email"
                     placeholderTextColor="#666"
                     value={email}
-                    onChangeText={(text) => {
-                      setEmail(text);
-                      if (error === "no email" || error === "invalid email") setError(null);
-                    }}
+                    onChangeText={handleEmailChange}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoComplete="email"
@@ -270,11 +299,7 @@ const SignupScreen = () => {
                     placeholder="Create a password"
                     placeholderTextColor="#666"
                     value={password}
-                    onChangeText={(text) => {
-                      setPassword(text);
-                      if (error === "no password" || error === "password must be at least 8 characters" || error === "weak password") 
-                        setError(null);
-                    }}
+                    onChangeText={handlePasswordChange}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoComplete="password-new"
@@ -337,10 +362,7 @@ const SignupScreen = () => {
                     placeholder="Confirm your password"
                     placeholderTextColor="#666"
                     value={confirmPassword}
-                    onChangeText={(text) => {
-                      setConfirmPassword(text);
-                      if (error === "no confirm password" || error === "passwords do not match") setError(null);
-                    }}
+                    onChangeText={handleConfirmPasswordChange}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoComplete="password-new"

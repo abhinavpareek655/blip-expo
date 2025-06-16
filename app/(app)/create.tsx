@@ -24,6 +24,54 @@ import { getWalletFromEmail } from "../../blockchain/authContract";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
+const BAD_WORDS: string[] = [
+  'arse','ass','asshole','bastard','bitch','bollocks','bugger','bullshit',
+  'cock','crap','cunt','damn','dick','dumbass','dyke','faggot','fuck','fucker',
+  'fucking','goddamn','hell','jackass','jesus','kike','motherfucker','nigga',
+  'piss','prick','pussy','shit','slut','twat','wanker'
+];
+
+const VARIANT_MAP: Record<string,string[]> = {
+  a:['a','@','4'], s:['s','$','5'], i:['i','1','!'], e:['e','3'],
+  o:['o','0'], t:['t','+','7'], h:['h','#']
+};
+
+const SQL_PATTERN = /\b(select|insert|update|delete|drop|alter|create|truncate)\b/gi;
+const XSS_PATTERN = /<[^>]+>/g;
+
+function buildObfuscationRegex(word: string): RegExp {
+  const chars = word.split('').map(ch => {
+    const variants = VARIANT_MAP[ch] || [ch];
+    const esc = variants.map(v => v.replace(/[-\/\\^$*+?.()|[\]{}]/g,'\\$&'));
+    return `(${esc.join('|')})`;
+  });
+  return new RegExp(`(?<![A-Za-z0-9])${chars.join('')}(?!(?:[A-Za-z0-9]))`, 'gi');
+}
+
+function sanitizeInput(input: string): string {
+  let s = input;
+
+  // strip HTML
+  s = s.replace(XSS_PATTERN, '');
+
+  // strip SQL
+  s = s.replace(SQL_PATTERN, '').replace(/(--|;|'|"|\/\*|\*\/|xp_)/g,'');
+
+  // censor profanities (including obfuscated)
+  BAD_WORDS.forEach(w => {
+    const re = buildObfuscationRegex(w);
+    s = s.replace(re, '****');
+  });
+
+  // collapse 2+ spaces → 1
+  // s = s.replace(/ {2,}/g, ' ');
+
+  // only trim leading spaces
+  // s = s.replace(/^\s+/, '');
+
+  return s;
+}
+
 const Create = () => {
   const [postText, setPostText] = useState("");
   const [isPublic, setIsPublic] = useState(true);
@@ -35,7 +83,8 @@ const Create = () => {
   const router = useRouter();
 
   const handleTextChange = (text: string) => {
-    setPostText(text);
+    const clean = sanitizeInput(text);
+    setPostText(clean);
     setCharacterCount(text.length);
   };
 

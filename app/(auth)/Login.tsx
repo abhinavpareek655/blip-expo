@@ -35,6 +35,50 @@ interface LoginScreenProps {
   navigation: LoginScreenNavigationProp;
 }
 
+const sanitizeEmail = (input: string): string => {
+  let s = input;
+
+  // a) Remove HTML tags
+  s = s.replace(/<[^>]*>/g, '');
+
+  // b) Remove common SQL injection patterns
+  s = s.replace(/\b(select|insert|update|delete|drop|alter|create|truncate)\b/gi, '');
+  s = s.replace(/(--|;|'|"|\/\*|\*\/|xp_)/g, '');
+
+  // c) Remove spaces and trim
+  s = s.replace(/\s+/g, '').trim();
+
+  return s;
+};
+
+const sanitizePassword = (input: string): string => {
+  let s = input;
+
+  // a) Remove any HTML tags
+  s = s.replace(/<[^>]*>/g, '');
+
+  // b) Remove common SQL injection patterns
+  s = s.replace(/\b(select|insert|update|delete|drop|alter|create|truncate)\b/gi, '');
+  s = s.replace(/(--|;|'|"|\/\*|\*\/|xp_)/g, '');
+  
+  return s.trim();
+};
+
+const sanitizePrivateKey = (input: string): string => {
+  let s = input;
+
+  // a) Remove HTML tags
+  s = s.replace(/<[^>]*>/g, '');
+
+  // b) Remove SQL injection patterns
+  s = s.replace(/\b(select|insert|update|delete|drop|alter|create|truncate)\b/gi, '');
+  s = s.replace(/(--|;|'|"|\/\*|\*\/|xp_)/g, '');
+
+  return s.trim();
+};
+
+
+
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -44,6 +88,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shakeAnimation] = useState(new Animated.Value(0));
+
+  const handleEmailChange = (text: string) => {
+    const clean = sanitizeEmail(text);
+    setEmail(clean);
+    if (error) setError(null);
+  };
+
+  const handlePasswordChange = (text: string) => {
+    const clean = sanitizePassword(text);
+    setPassword(clean);
+    if (error) setError(null);
+  };
+
+  const handlePrivateKeyChange = (text: string) => {
+    const clean = sanitizePrivateKey(text);
+    setPrivateKey(clean);
+    if (error) setError(null);
+  };
 
   const handleLogin = useCallback(async () => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -153,10 +215,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   placeholder="Enter your email"
                   placeholderTextColor="#666"
                   value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    if (error) setError(null);
-                  }}
+                  onChangeText={handleEmailChange}
+                  maxLength={256}
                   autoCapitalize="none"
                   editable={!isLoading}
                   autoCorrect={false}
@@ -174,11 +234,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   placeholder="Enter your password"
                   placeholderTextColor="#666"
                   value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    if (error) setError(null);
-                  }}
+                  onChangeText={handlePasswordChange}
                   secureTextEntry={!showPassword}
+                  maxLength={256}
                   editable={!isLoading}
                   autoCapitalize="none"
                   autoComplete="password"
@@ -199,10 +257,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   placeholder="Enter your private key"
                   placeholderTextColor="#666"
                   value={privateKey}
-                  onChangeText={(text) => {
-                    setPrivateKey(text);
-                    if (error) setError(null);
-                  }}
+                  onChangeText={handlePrivateKeyChange}
                   editable={!isLoading}
                   autoCapitalize="none"
                   autoCorrect={false}

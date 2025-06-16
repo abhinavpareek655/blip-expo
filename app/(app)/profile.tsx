@@ -35,6 +35,82 @@ import { generateAvatarUrl } from '../../blockchain/genAvatar';
 const AUTH_CONTRACT_ADDRESS = process.env.EXPO_PUBLIC_AUTH_CONTRACT!;
 const PROVIDER_URL = process.env.EXPO_PUBLIC_RPC_URL!;
 const SCREEN_WIDTH = Dimensions.get("window").width;
+// 1) Bad‑word list
+const BAD_WORDS: string[] = [
+  'arse', 'ass', 'asshole', 'bastard', 'bitch', 'bollocks',
+  'bugger', 'bullshit', 'cock', 'crap', 'cunt', 'damn',
+  'dick', 'dumbass', 'dyke', 'faggot', 'fuck', 'fucker',
+  'fucking', 'goddamn', 'jackass', 'jesus',
+  'kike', 'motherfucker', 'nigga', 'piss', 'prick',
+  'pussy', 'shit', 'slut', 'twat', 'wanker'
+];
+
+// 2) Character‑to‑symbol variants
+const VARIANT_MAP: Record<string, string[]> = {
+  a: ['a','@','4'],
+  s: ['s','$','5'],
+  i: ['i','1','!'],
+  e: ['e','3'],
+  o: ['o','0'],
+  t: ['t','+','7'],
+  h: ['h','#'],
+};
+
+// 3) SQL/XSS patterns
+const SQL_PATTERN = /\b(select|insert|update|delete|drop|alter|create|truncate)\b/gi;
+const XSS_PATTERN = /<[^>]+>/g;
+
+// 4) Build an obfuscation‐aware regex for a bad word
+function buildObfuscationRegex(word: string): RegExp {
+  const chars = word.split('').map(ch => {
+    const variants = VARIANT_MAP[ch] || [ch];
+    // escape regex meta‑chars
+    const esc = variants.map(v => v.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'));
+    return `(${esc.join('|')})`;
+  });
+  // (?<![A-Za-z0-9]) and (?![A-Za-z0-9]) ensure whole‑word matching 
+  return new RegExp(`(?<![A-Za-z0-9])${chars.join('')}(?!(?:[A-Za-z0-9]))`, 'gi');
+}
+
+// 5) The sanitizer
+function sanitizeBio(input: string): string {
+  let s = input;
+
+  // a) Strip HTML tags (XSS)
+  s = s.replace(/<[^>]+>/g, '');
+
+  // b) Remove SQL keywords/punctuation
+  s = s.replace(/\b(select|insert|update|delete|drop|alter|create|truncate)\b/gi, '');
+  s = s.replace(/(--|;|'|"|\/\*|\*\/|xp_)/g, '');
+
+  // c) Censor bad words (with obfuscation-aware regex)
+  BAD_WORDS.forEach(word => {
+    const re = buildObfuscationRegex(word);
+    s = s.replace(re, '****');
+  });
+
+  // d) Collapse any run of 2+ spaces into a single space
+  s = s.replace(/ {2,}/g, ' ');
+
+  // e) Only trim leading spaces, so typing "hello " keeps the space
+  s = s.replace(/^\s+/, '');
+
+  return s;
+}
+
+const sanitizePassword = (input: string): string => {
+  // a) Strip HTML tags
+  let s = input.replace(/<[^>]*>/g, '');
+
+  // b) Remove common SQL injection keywords/patterns
+  s = s.replace(/\b(select|insert|update|delete|drop|alter|create|truncate)\b/gi, '');
+  s = s.replace(/(--|;|'|"|\/\*|\*\/|xp_)/g, '');
+
+  // c) Trim leading/trailing spaces
+  return s.trim();
+};
+
+
 
 const clearAsyncStorage = async () => {
   await AsyncStorage.clear();
@@ -61,6 +137,18 @@ const ProfileScreen = () => {
   const [privateKey, setPrivateKey] = useState("");
   const [showPrivateKeySection, setShowPrivateKeySection] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+
+
+  const handlePasswordChange = (text: string) => {
+    const clean = sanitizePassword(text);
+    setPassword(clean);
+    if (passwordError) setPasswordError(null);
+  };
+
+  const handleBioChange = (text: string) => {
+    const clean = sanitizeBio(text);
+    setNewBio(clean);
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -471,6 +559,7 @@ const ProfileScreen = () => {
                   placeholder="Enter your name"
                   placeholderTextColor="#666"
                   value={newName}
+                  maxLength={30}
                   onChangeText={setNewName}
                   style={styles.modalInput}
                 />
@@ -482,10 +571,11 @@ const ProfileScreen = () => {
                   placeholder="Tell us about yourself"
                   placeholderTextColor="#666"
                   value={newBio}
-                  onChangeText={setNewBio}
+                  onChangeText={handleBioChange}
                   style={[styles.modalInput, styles.bioInput]}
                   multiline
                   numberOfLines={4}
+                  maxLength={200}
                   textAlignVertical="top"
                 />
               </View>
@@ -559,11 +649,9 @@ const ProfileScreen = () => {
                     placeholder="Enter your password"
                     placeholderTextColor="#666"
                     value={password}
-                    onChangeText={(text) => {
-                      setPassword(text);
-                      if (passwordError) setPasswordError(null);
-                    }}
+                    onChangeText={handlePasswordChange}
                     style={styles.passwordInput}
+                    maxLength={256}
                     secureTextEntry={true}
                     editable={!verifyingPassword}
                     autoCapitalize="none"
